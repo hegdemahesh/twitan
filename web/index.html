@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Twitan — Login</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Twitan</h1>
+      <nav id="nav" class="hidden">
+        <span id="userPhone"></span>
+        <button id="logoutBtn" class="secondary">Logout</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- Login section -->
+      <section id="loginSection">
+        <h2>Login with Phone</h2>
+        <label>Phone number (E.164):</label>
+        <input id="phoneInput" type="tel" placeholder="+1 555 555 5555" />
+        <div id="recaptcha-container"></div>
+        <button id="sendCodeBtn">Send code</button>
+
+        <div id="codeBlock" class="hidden">
+          <label>Verification code (SMS):</label>
+          <input id="codeInput" type="text" placeholder="123456" />
+          <button id="verifyCodeBtn">Verify</button>
+        </div>
+
+        <p id="loginMsg" class="msg"></p>
+      </section>
+
+      <!-- Home section -->
+      <section id="homeSection" class="hidden">
+        <h2>Home</h2>
+        <button id="createTournamentBtn">Create a new tournament</button>
+
+        <dialog id="createTournamentDialog">
+          <form method="dialog" id="tournamentForm">
+            <h3>Create Badminton Tournament</h3>
+            <label>Tournament name</label>
+            <input id="tournamentName" type="text" placeholder="Summer Open 2025" required />
+
+            <menu class="dialog-actions">
+              <button value="cancel" class="secondary" id="cancelDialogBtn">Cancel</button>
+              <button value="default" id="submitDialogBtn">Create</button>
+            </menu>
+          </form>
+          <p id="dialogMsg" class="msg"></p>
+        </dialog>
+
+        <div id="result" class="msg"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
