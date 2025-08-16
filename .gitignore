@@ -2,3 +2,5 @@ functions/lib/
 functions/node_modules/
 .firebase/
 *.log
+web/node_modules/
+web/dist/
