@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { auth, httpsCallable, functions, onAuthStateChanged, signOut } from '../lib/firebase'
+import { auth, httpsCallable, functions, onAuthStateChanged, signOut, isEmulator } from '../lib/firebase'
 import { useNavigate } from 'react-router-dom'
 
 export default function Home() {
@@ -36,6 +36,11 @@ export default function Home() {
           <h2 className="text-xl font-semibold">Home</h2>
           <button className="btn btn-secondary" onClick={() => signOut(auth)}>Logout</button>
         </div>
+        {isEmulator && (
+          <div className="alert alert-info">
+            <span>Using Firebase Emulators</span>
+          </div>
+        )}
         <label className="label" htmlFor="tname">Tournament name</label>
         <input id="tname" className="input input-bordered w-full" placeholder="Summer Open 2025" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="btn btn-primary" onClick={createTournament}>Create a new tournament</button>

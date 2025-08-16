@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { auth, RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged } from '../lib/firebase'
+import { auth, RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, isEmulator } from '../lib/firebase'
 import { useNavigate } from 'react-router-dom'
 
 export default function App() {
@@ -8,6 +8,7 @@ export default function App() {
   const [phase, setPhase] = useState<'enter-phone'|'enter-code'>('enter-phone')
   const [msg, setMsg] = useState('')
   const recaptchaDivRef = useRef<HTMLDivElement>(null)
+  const verifierRef = useRef<RecaptchaVerifier | null>(null)
   const nav = useNavigate()
 
   useEffect(() => {
@@ -17,12 +18,24 @@ export default function App() {
     return () => unsub()
   }, [nav])
 
+  async function getOrCreateVerifier() {
+    if (verifierRef.current) return verifierRef.current
+    if (!recaptchaDivRef.current) return null
+    const v = new RecaptchaVerifier(
+      auth,
+      recaptchaDivRef.current,
+      { size: isEmulator ? 'invisible' : 'normal' }
+    )
+    await v.render()
+    verifierRef.current = v
+    return v
+  }
+
   async function sendCode() {
     try {
       setMsg('')
-      if (!recaptchaDivRef.current) return
-      const verifier = new RecaptchaVerifier(auth, recaptchaDivRef.current, { size: 'normal' })
-      await verifier.render()
+      const verifier = await getOrCreateVerifier()
+      if (!verifier) return
       const result = await signInWithPhoneNumber(auth, phone.trim(), verifier)
       ;(window as any).__conf = result
       setPhase('enter-code')

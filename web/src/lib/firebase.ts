@@ -17,8 +17,18 @@ export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const functions = getFunctions(app, 'us-central1')
 
-// Emulator wiring (optional): set VITE_USE_EMULATORS=true to use local emulators
-if (import.meta.env.VITE_USE_EMULATORS === 'true') {
+// Decide emulator usage: explicit env or default on localhost
+export const isEmulator =
+  import.meta.env.VITE_USE_EMULATORS === 'true' ||
+  ['localhost', '127.0.0.1'].includes(window.location.hostname)
+
+if (isEmulator) {
+  // For Phone Auth on web, bypass real app verification when using the emulator
+  // This avoids Recaptcha during local development
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  auth.settings.appVerificationDisabledForTesting = true
+
   // Functions emulator
   connectFunctionsEmulator(functions, '127.0.0.1', 5001)
   // Auth emulator
