@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { isTournamentCreate, isTournamentDelete, isTournamentAddEvent, EventDoc } from "../../../shared/events";
+import { isTournamentCreate, isTournamentDelete, isTournamentAddEvent, isTournamentAddCategories, isTournamentDeleteCategory, EventDoc } from "../../../shared/events";
 
 export const onEventQueued = functions
   .region("us-central1")
@@ -62,6 +62,42 @@ export const onEventQueued = functions
           status: 'processed',
           processedAt: FieldValue.serverTimestamp(),
           result: { tournamentId: payload.tournamentId, eventId: evRef.id },
+        })
+        return;
+      }
+
+      if (isTournamentAddCategories(data)) {
+        const payload = data.eventPayload as { tournamentId: string; categories: Array<{ name: string; minAge?: number; maxAge?: number; gender: 'Male' | 'Female' | 'Open'; format: 'Singles' | 'Doubles' }> }
+        const batch = db.batch()
+        const catsCol = db.collection('tournaments').doc(payload.tournamentId).collection('categories')
+        for (const c of payload.categories) {
+          const ref = catsCol.doc()
+          batch.set(ref, {
+            name: c.name,
+            minAge: c.minAge ?? null,
+            maxAge: c.maxAge ?? null,
+            gender: c.gender,
+            format: c.format,
+            createdAt: FieldValue.serverTimestamp(),
+            createdBy: data.callerUid ?? null,
+          })
+        }
+        await batch.commit()
+        await snap.ref.update({
+          status: 'processed',
+          processedAt: FieldValue.serverTimestamp(),
+          result: { tournamentId: payload.tournamentId, count: payload.categories.length },
+        })
+        return;
+      }
+
+      if (isTournamentDeleteCategory(data)) {
+        const payload = data.eventPayload as { tournamentId: string; categoryId: string }
+        await db.collection('tournaments').doc(payload.tournamentId).collection('categories').doc(payload.categoryId).delete()
+        await snap.ref.update({
+          status: 'processed',
+          processedAt: FieldValue.serverTimestamp(),
+          result: { tournamentId: payload.tournamentId, categoryId: payload.categoryId, action: 'deleted' },
         })
         return;
       }

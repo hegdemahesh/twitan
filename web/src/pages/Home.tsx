@@ -9,6 +9,9 @@ export default function Home() {
   const [msg, setMsg] = useState('')
   const [tournaments, setTournaments] = useState<Array<{ id: string; name: string; type: string; status?: string }>>([])
   const activeCount = tournaments.filter(t => t.status !== 'deleted' && t.status !== 'archived').length
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [categoryDrafts, setCategoryDrafts] = useState<Record<string, Array<{ name: string; minAge?: number; maxAge?: number; gender: 'Male' | 'Female' | 'Open'; format: 'Singles' | 'Doubles' }>>>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
   const nav = useNavigate()
 
   useEffect(() => {
@@ -68,19 +71,66 @@ export default function Home() {
     }
   }
 
-  async function addTournamentEvent(tournamentId: string) {
+  function openEdit(tournamentId: string) {
+    setEditingId(tournamentId)
+    setCategoryDrafts((prev) => ({ ...prev, [tournamentId]: prev[tournamentId] ?? [] }))
+  }
+
+  function addCategoryDraft(tournamentId: string) {
+    setCategoryDrafts((prev) => ({
+      ...prev,
+      [tournamentId]: [
+        ...(prev[tournamentId] ?? []),
+        { name: '', gender: 'Open', format: 'Singles' },
+      ],
+    }))
+  }
+
+  function updateCategoryDraft(tournamentId: string, idx: number, patch: Partial<{ name: string; minAge?: number; maxAge?: number; gender: 'Male' | 'Female' | 'Open'; format: 'Singles' | 'Doubles' }>) {
+    setCategoryDrafts((prev) => {
+      const list = [...(prev[tournamentId] ?? [])]
+      list[idx] = { ...list[idx], ...patch }
+      return { ...prev, [tournamentId]: list }
+    })
+  }
+
+  function removeCategoryDraft(tournamentId: string, idx: number) {
+    setCategoryDrafts((prev) => {
+      const list = [...(prev[tournamentId] ?? [])]
+      list.splice(idx, 1)
+      return { ...prev, [tournamentId]: list }
+    })
+  }
+
+  async function saveCategories(tournamentId: string) {
     try {
-      setMsg('')
-      const title = prompt('Event title') || ''
-      if (!title) return
-      const notes = prompt('Notes (optional)') || undefined
+      const categories = (categoryDrafts[tournamentId] ?? []).filter(c => c.name.trim().length > 0)
+      if (categories.length === 0) {
+        setMsg('Add at least one category')
+        return
+      }
       const call = httpsCallable(functions, 'addEvent')
       const res = await call({
         eventType: EventTypes.Tournament,
-        eventName: EventNames.Tournament.AddTournamentEvent,
-        eventPayload: { tournamentId, title, notes },
+        eventName: EventNames.Tournament.AddTournamentCategories,
+        eventPayload: { tournamentId, categories },
       })
-      setMsg(`Tournament event queued. Event ID: ${(res.data as any).id}`)
+      setMsg(`Categories queued. Event ID: ${(res.data as any).id}`)
+      setEditingId(null)
+    } catch (e: any) {
+      setMsg(e.message || String(e))
+    }
+  }
+
+  async function deleteCategory(tournamentId: string, categoryId: string) {
+    try {
+      const call = httpsCallable(functions, 'addEvent')
+      const res = await call({
+        eventType: EventTypes.Tournament,
+        eventName: EventNames.Tournament.DeleteTournamentCategory,
+        eventPayload: { tournamentId, categoryId },
+      })
+      setMsg(`Category delete queued. Event ID: ${(res.data as any).id}`)
     } catch (e: any) {
       setMsg(e.message || String(e))
     }
@@ -113,15 +163,87 @@ export default function Home() {
                   <span>{t.name} <span className="badge badge-ghost ml-2">{t.type}</span></span>
                   <div className="flex items-center gap-2">
                     {t.status && <span className="badge">{t.status}</span>}
-                    <button className="btn btn-xs" onClick={() => addTournamentEvent(t.id)}>Add event</button>
+                    <button className="btn btn-xs" onClick={() => setExpanded((e) => ({ ...e, [t.id]: !e[t.id] }))}>{expanded[t.id] ? 'Collapse' : 'Expand'}</button>
+                    <button className="btn btn-xs" onClick={() => openEdit(t.id)}>Edit tournament</button>
                     <button className="btn btn-xs btn-error" onClick={() => deleteTournament(t.id)}>Delete</button>
                   </div>
                 </div>
+                {expanded[t.id] && (
+                  <TournamentCategories tournamentId={t.id} onDeleteCategory={deleteCategory} />
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {editingId && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-3xl">
+            <h3 className="font-bold text-lg">Edit tournament categories</h3>
+            <div className="mt-4 space-y-4">
+              {(categoryDrafts[editingId] ?? []).map((c, idx) => (
+                <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+                  <input className="input input-bordered" placeholder="Name" value={c.name}
+                    onChange={(e) => updateCategoryDraft(editingId, idx, { name: e.target.value })} />
+                  <input type="number" className="input input-bordered" placeholder="Min age" value={c.minAge ?? ''}
+                    onChange={(e) => updateCategoryDraft(editingId, idx, { minAge: e.target.value ? Number(e.target.value) : undefined })} />
+                  <input type="number" className="input input-bordered" placeholder="Max age" value={c.maxAge ?? ''}
+                    onChange={(e) => updateCategoryDraft(editingId, idx, { maxAge: e.target.value ? Number(e.target.value) : undefined })} />
+                  <select className="select select-bordered" value={c.gender}
+                    onChange={(e) => updateCategoryDraft(editingId, idx, { gender: e.target.value as any })}>
+                    <option>Open</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                  </select>
+                  <select className="select select-bordered" value={c.format}
+                    onChange={(e) => updateCategoryDraft(editingId, idx, { format: e.target.value as any })}>
+                    <option>Singles</option>
+                    <option>Doubles</option>
+                  </select>
+                  <button className="btn btn-ghost" onClick={() => removeCategoryDraft(editingId!, idx)}>Remove</button>
+                </div>
+              ))}
+              <button className="btn" onClick={() => addCategoryDraft(editingId!)}>Add category</button>
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setEditingId(null)}>Close</button>
+              <button className="btn btn-primary" onClick={() => saveCategories(editingId!)}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TournamentCategories({ tournamentId, onDeleteCategory }: { tournamentId: string; onDeleteCategory: (tId: string, cId: string) => void }) {
+  const [items, setItems] = React.useState<Array<{ id: string; name: string; minAge?: number; maxAge?: number; gender: string; format: string }>>([])
+  React.useEffect(() => {
+    const q = collection(db, 'tournaments', tournamentId, 'categories')
+    const unsub = onSnapshot(q, (snap) => {
+      setItems(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+    })
+    return () => unsub()
+  }, [tournamentId])
+  if (items.length === 0) return <div className="text-sm opacity-60">No categories yet.</div>
+  return (
+    <div className="mt-2 p-3 rounded bg-base-200">
+      <ul className="space-y-2">
+        {items.map(c => (
+          <li key={c.id} className="flex items-center justify-between">
+            <span>
+              {c.name}
+              {typeof c.minAge === 'number' || typeof c.maxAge === 'number' ? (
+                <span className="badge badge-ghost ml-2">{c.minAge ?? '-'} - {c.maxAge ?? '-'} yrs</span>
+              ) : null}
+              <span className="badge badge-ghost ml-2">{c.gender}</span>
+              <span className="badge badge-ghost ml-2">{c.format}</span>
+            </span>
+            <button className="btn btn-xs btn-error" onClick={() => onDeleteCategory(tournamentId, c.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

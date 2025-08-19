@@ -7,6 +7,8 @@ export const EventNames = {
     CreateBadmintonTournament: 'createBadmintonTournament',
   DeleteTournament: 'deleteTournament',
   AddTournamentEvent: 'addTournamentEvent',
+  AddTournamentCategories: 'addTournamentCategories',
+  DeleteTournamentCategory: 'deleteTournamentCategory',
   },
 } as const
 
@@ -26,6 +28,20 @@ export type EventPayloadMap = {
       tournamentId: string
       title: string
       notes?: string
+    }
+    [EventNames.Tournament.AddTournamentCategories]: {
+      tournamentId: string
+      categories: Array<{
+        name: string
+        minAge?: number
+        maxAge?: number
+        gender: 'Male' | 'Female' | 'Open'
+        format: 'Singles' | 'Doubles'
+      }>
+    }
+    [EventNames.Tournament.DeleteTournamentCategory]: {
+      tournamentId: string
+      categoryId: string
     }
   }
 }
@@ -57,5 +73,19 @@ export function isTournamentAddEvent(e: EventDoc): e is EventDoc<typeof EventTyp
   return (
     e.eventType === EventTypes.Tournament &&
     e.eventName === EventNames.Tournament.AddTournamentEvent
+  )
+}
+
+export function isTournamentAddCategories(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddTournamentCategories> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.AddTournamentCategories
+  )
+}
+
+export function isTournamentDeleteCategory(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.DeleteTournamentCategory> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.DeleteTournamentCategory
   )
 }
