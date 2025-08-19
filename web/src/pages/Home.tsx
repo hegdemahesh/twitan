@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { auth, httpsCallable, functions, onAuthStateChanged, signOut, isEmulator } from '../lib/firebase'
+import { EventTypes, EventNames } from '../../../shared/events'
 import { useNavigate } from 'react-router-dom'
 
 export default function Home() {
@@ -19,8 +20,8 @@ export default function Home() {
       setMsg('')
       const call = httpsCallable(functions, 'addEvent')
       const res = await call({
-        eventType: 'tournament',
-        eventName: 'createBadmintonTournament',
+        eventType: EventTypes.Tournament,
+        eventName: EventNames.Tournament.CreateBadmintonTournament,
         eventPayload: { type: 'Badminton', name },
       })
       setMsg(`Tournament queued. Event ID: ${(res.data as any).id}`)

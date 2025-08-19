@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Match all documents in the database
+    match /{document=**} {
+      // Allow anyone to read data
+      allow read: if true;
+
+      // Nobody can write (all writes via Cloud Functions)
+      allow write: if false;
+    }
+  }
+}
