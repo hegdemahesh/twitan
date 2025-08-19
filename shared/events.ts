@@ -5,6 +5,8 @@ export const EventTypes = {
 export const EventNames = {
   Tournament: {
     CreateBadmintonTournament: 'createBadmintonTournament',
+  DeleteTournament: 'deleteTournament',
+  AddTournamentEvent: 'addTournamentEvent',
   },
 } as const
 
@@ -16,6 +18,14 @@ export type EventPayloadMap = {
     [EventNames.Tournament.CreateBadmintonTournament]: {
       type: 'Badminton'
       name: string
+    }
+    [EventNames.Tournament.DeleteTournament]: {
+      tournamentId: string
+    }
+    [EventNames.Tournament.AddTournamentEvent]: {
+      tournamentId: string
+      title: string
+      notes?: string
     }
   }
 }
@@ -33,5 +43,19 @@ export function isTournamentCreate(e: EventDoc): e is EventDoc<typeof EventTypes
   return (
     e.eventType === EventTypes.Tournament &&
     e.eventName === EventNames.Tournament.CreateBadmintonTournament
+  )
+}
+
+export function isTournamentDelete(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.DeleteTournament> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.DeleteTournament
+  )
+}
+
+export function isTournamentAddEvent(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddTournamentEvent> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.AddTournamentEvent
   )
 }
