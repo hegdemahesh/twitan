@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, signOut, onAuthStateChanged, connectAuthEmulator } from 'firebase/auth'
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions'
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
 
 // Config provided by user
 export const firebaseConfig = {
@@ -16,6 +17,7 @@ export const firebaseConfig = {
 export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const functions = getFunctions(app, 'us-central1')
+export const db = getFirestore(app)
 
 // Decide emulator usage: explicit env or default on localhost
 export const isEmulator =
@@ -31,6 +33,8 @@ if (isEmulator) {
 
   // Functions emulator
   connectFunctionsEmulator(functions, '127.0.0.1', 5001)
+  // Firestore emulator
+  connectFirestoreEmulator(db, '127.0.0.1', 8080)
   // Auth emulator
   connectAuthEmulator(auth, 'http://127.0.0.1:9099')
 }

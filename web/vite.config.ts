@@ -14,6 +14,7 @@ export default defineConfig({
       '../../../shared/events': path.resolve(__dirname, '../shared/events.ts'),
       '../../shared/events': path.resolve(__dirname, '../shared/events.ts'),
       '../shared/events': path.resolve(__dirname, '../shared/events.ts'),
+      shared: path.resolve(__dirname, '../shared'),
     }
   }
 })
