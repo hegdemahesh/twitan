@@ -9,6 +9,11 @@ export const EventNames = {
   AddTournamentEvent: 'addTournamentEvent',
   AddTournamentCategories: 'addTournamentCategories',
   DeleteTournamentCategory: 'deleteTournamentCategory',
+  UpdateTournamentCategory: 'updateTournamentCategory',
+  AddPlayer: 'addPlayer',
+  AddTeam: 'addTeam',
+  AddEntry: 'addEntry',
+  DeleteEntry: 'deleteEntry',
   },
 } as const
 
@@ -42,6 +47,50 @@ export type EventPayloadMap = {
     [EventNames.Tournament.DeleteTournamentCategory]: {
       tournamentId: string
       categoryId: string
+    }
+    [EventNames.Tournament.UpdateTournamentCategory]: {
+      tournamentId: string
+      categoryId: string
+      patch: {
+        name?: string
+        minAge?: number | null
+        maxAge?: number | null
+        gender?: 'Male' | 'Female' | 'Open'
+        format?: 'Singles' | 'Doubles'
+      }
+    }
+    [EventNames.Tournament.AddPlayer]: {
+      tournamentId: string
+      player: {
+        name: string
+        dob: string // ISO date string
+        gender: 'Male' | 'Female' | 'Other'
+      }
+    }
+    [EventNames.Tournament.AddTeam]: {
+      tournamentId: string
+      player1Id: string
+      player2Id: string
+      name?: string | null
+    }
+    [EventNames.Tournament.AddEntry]: (
+      | {
+          tournamentId: string
+          categoryId: string
+          format: 'Singles'
+          playerId: string
+        }
+      | {
+          tournamentId: string
+          categoryId: string
+          format: 'Doubles'
+          teamId: string
+        }
+    )
+    [EventNames.Tournament.DeleteEntry]: {
+      tournamentId: string
+      categoryId: string
+      entryId: string
     }
   }
 }
@@ -87,5 +136,40 @@ export function isTournamentDeleteCategory(e: EventDoc): e is EventDoc<typeof Ev
   return (
     e.eventType === EventTypes.Tournament &&
     e.eventName === EventNames.Tournament.DeleteTournamentCategory
+  )
+}
+
+export function isTournamentUpdateCategory(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.UpdateTournamentCategory> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.UpdateTournamentCategory
+  )
+}
+
+export function isTournamentAddPlayer(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddPlayer> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.AddPlayer
+  )
+}
+
+export function isTournamentAddTeam(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddTeam> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.AddTeam
+  )
+}
+
+export function isTournamentAddEntry(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddEntry> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.AddEntry
+  )
+}
+
+export function isTournamentDeleteEntry(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.DeleteEntry> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.DeleteEntry
   )
 }
