@@ -4,6 +4,14 @@ import { auth, db, functions, httpsCallable, onAuthStateChanged } from '../lib/f
 import { collection, doc, onSnapshot } from 'firebase/firestore'
 import { EventNames, EventTypes } from '../../../shared/events'
 
+type PlayerGender = 'Male' | 'Female' | 'Other'
+type CategoryGender = 'Male' | 'Female' | 'Open'
+type CategoryFormat = 'Singles' | 'Doubles'
+type Team = { id: string; name?: string | null; player1Id: string; player2Id: string }
+type Player = { id: string; name?: string; phoneNumber?: string; gender?: PlayerGender; dob?: string }
+type Category = { id: string; name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat }
+type Entry = { id: string; playerId?: string; teamId?: string }
+
 export default function TournamentEdit() {
   const [params] = useSearchParams()
   const id = params.get('id')
@@ -11,13 +19,21 @@ export default function TournamentEdit() {
   const [msg, setMsg] = useState('')
   const [tournament, setTournament] = useState<any>(null)
   const [roles, setRoles] = useState<Array<{ id: string; role: 'admin' | 'scorer'; phoneNumber: string }>>([])
-  const [players, setPlayers] = useState<Array<any>>([])
+  const [players, setPlayers] = useState<Player[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [phone, setPhone] = useState('')
   const [role, setRole] = useState<'admin' | 'scorer'>('admin')
   const [playerPhone, setPlayerPhone] = useState('')
   const [playerName, setPlayerName] = useState('')
   const [playerDob, setPlayerDob] = useState('')
-  const [playerGender, setPlayerGender] = useState<'Male'|'Female'|'Other'>('Male')
+  const [playerGender, setPlayerGender] = useState<PlayerGender>('Male')
+  const [manualPlayer, setManualPlayer] = useState<{ name: string; dob: string; gender: PlayerGender }>({ name: '', dob: '', gender: 'Male' })
+  const [teamForm, setTeamForm] = useState<{ name?: string; p1?: string; p2?: string }>({})
+  const [catForm, setCatForm] = useState<{ name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat }>({ name: '', gender: 'Open', format: 'Singles' })
+  const [editingCategory, setEditingCategory] = useState<null | { categoryId: string; data: { name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat } }>(null)
+  const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat }>(null)
+  const [entrySelected, setEntrySelected] = useState<string>('')
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { if (!u) nav('/') })
@@ -29,7 +45,9 @@ export default function TournamentEdit() {
     const unsubT = onSnapshot(doc(db, 'tournaments', id), (d) => setTournament({ id: d.id, ...d.data() }))
     const unsubR = onSnapshot(collection(db, 'tournaments', id, 'roles'), (snap) => setRoles(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     const unsubP = onSnapshot(collection(db, 'tournaments', id, 'players'), (snap) => setPlayers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
-    return () => { unsubT(); unsubR(); unsubP() }
+    const unsubC = onSnapshot(collection(db, 'tournaments', id, 'categories'), (snap) => setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+    const unsubTm = onSnapshot(collection(db, 'tournaments', id, 'teams'), (snap) => setTeams(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+    return () => { unsubT(); unsubR(); unsubP(); unsubC(); unsubTm() }
   }, [id])
 
   if (!id) return <div className="p-4">Missing tournament id</div>
@@ -58,6 +76,63 @@ export default function TournamentEdit() {
       await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddPlayerByPhone, eventPayload: { tournamentId: id, phoneNumber: playerPhone, name: playerName || undefined, dob: playerDob || undefined, gender: playerGender } })
       setPlayerPhone(''); setPlayerName(''); setPlayerDob('')
     } catch (e: any) { setMsg(e.message || String(e)) }
+  }
+
+  async function addManualPlayer() {
+    try {
+      const call = httpsCallable(functions, 'addEvent')
+      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddPlayer, eventPayload: { tournamentId: id, player: manualPlayer } })
+      setManualPlayer({ name: '', dob: '', gender: 'Male' })
+    } catch (e: any) { setMsg(e.message || String(e)) }
+  }
+
+  async function addTeam() {
+    try {
+      if (!teamForm.p1 || !teamForm.p2 || teamForm.p1 === teamForm.p2) return
+      const call = httpsCallable(functions, 'addEvent')
+      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddTeam, eventPayload: { tournamentId: id, player1Id: teamForm.p1, player2Id: teamForm.p2, name: teamForm.name ?? null } })
+      setTeamForm({})
+    } catch (e: any) { setMsg(e.message || String(e)) }
+  }
+
+  async function addCategory() {
+    try {
+      if (!catForm.name.trim()) return
+      const call = httpsCallable(functions, 'addEvent')
+      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddTournamentCategories, eventPayload: { tournamentId: id, categories: [catForm] } })
+      setCatForm({ name: '', gender: 'Open', format: 'Singles' })
+    } catch (e: any) { setMsg(e.message || String(e)) }
+  }
+
+  async function deleteCategory(categoryId: string) {
+    try {
+      const call = httpsCallable(functions, 'addEvent')
+      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteTournamentCategory, eventPayload: { tournamentId: id, categoryId } })
+    } catch (e: any) { setMsg(e.message || String(e)) }
+  }
+
+  async function saveCategoryEdit() {
+    if (!editingCategory) return
+    const call = httpsCallable(functions, 'addEvent')
+    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateTournamentCategory, eventPayload: { tournamentId: id, categoryId: editingCategory.categoryId, patch: editingCategory.data } })
+    setEditingCategory(null)
+  }
+
+  async function addEntry() {
+    if (!entryModal || !entrySelected) return
+    const call = httpsCallable(functions, 'addEvent')
+    if (entryModal.format === 'Singles') {
+      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Singles', playerId: entrySelected } })
+    } else {
+      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Doubles', teamId: entrySelected } })
+    }
+    setEntrySelected('')
+    setEntryModal(null)
+  }
+
+  async function deleteEntry(categoryId: string, entryId: string) {
+    const call = httpsCallable(functions, 'addEvent')
+    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteEntry, eventPayload: { tournamentId: id, categoryId, entryId } })
   }
 
   return (
@@ -106,6 +181,18 @@ export default function TournamentEdit() {
           </select>
           <button className="btn" onClick={addPlayerByPhone}>Add player</button>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+          <input className="input input-bordered" placeholder="Name" value={manualPlayer.name} onChange={(e) => setManualPlayer({ ...manualPlayer, name: e.target.value })} />
+          <input type="date" className="input input-bordered" value={manualPlayer.dob} onChange={(e) => setManualPlayer({ ...manualPlayer, dob: e.target.value })} />
+          <select className="select select-bordered" value={manualPlayer.gender} onChange={(e) => setManualPlayer({ ...manualPlayer, gender: e.target.value as any })}>
+            <option>Male</option>
+            <option>Female</option>
+            <option>Other</option>
+          </select>
+          <div className="md:col-span-2 flex items-center">
+            <button className="btn" onClick={addManualPlayer}>Add manual player</button>
+          </div>
+        </div>
         <ul className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
           {players.map(p => (
             <li key={p.id} className="bg-base-200 rounded p-2 text-sm flex justify-between">
@@ -116,7 +203,171 @@ export default function TournamentEdit() {
         </ul>
       </div>
 
+      <div className="card bg-base-100 shadow p-4 space-y-3">
+        <div className="font-medium">Teams</div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <input className="input input-bordered" placeholder="Team name (optional)" value={teamForm.name ?? ''} onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })} />
+          <select className="select select-bordered" value={teamForm.p1 ?? ''} onChange={(e) => setTeamForm({ ...teamForm, p1: e.target.value })}>
+            <option value="" disabled>Select player 1</option>
+            {players.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
+          </select>
+          <select className="select select-bordered" value={teamForm.p2 ?? ''} onChange={(e) => setTeamForm({ ...teamForm, p2: e.target.value })}>
+            <option value="" disabled>Select player 2</option>
+            {players.map(p => <option key={p.id} value={p.id} disabled={p.id === teamForm.p1}>{p.name ?? p.id}</option>)}
+          </select>
+          <button className="btn" onClick={addTeam} disabled={!teamForm.p1 || !teamForm.p2 || teamForm.p1 === teamForm.p2}>Add team</button>
+        </div>
+        <ul className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+          {teams.map(t => (
+            <li key={t.id} className="p-2 rounded bg-base-200 text-sm">
+              <span>{t.name ?? 'Team'} <span className="opacity-60">({t.player1Id} & {t.player2Id})</span></span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="card bg-base-100 shadow p-4 space-y-3">
+        <div className="font-medium">Categories</div>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+          <input className="input input-bordered" placeholder="Name" value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} />
+          <input type="number" className="input input-bordered" placeholder="Min age" value={catForm.minAge ?? ''} onChange={(e) => setCatForm({ ...catForm, minAge: e.target.value ? Number(e.target.value) : null })} />
+          <input type="number" className="input input-bordered" placeholder="Max age" value={catForm.maxAge ?? ''} onChange={(e) => setCatForm({ ...catForm, maxAge: e.target.value ? Number(e.target.value) : null })} />
+          <select className="select select-bordered" value={catForm.gender} onChange={(e) => setCatForm({ ...catForm, gender: e.target.value as any })}>
+            <option>Open</option>
+            <option>Male</option>
+            <option>Female</option>
+          </select>
+          <select className="select select-bordered" value={catForm.format} onChange={(e) => setCatForm({ ...catForm, format: e.target.value as any })}>
+            <option>Singles</option>
+            <option>Doubles</option>
+          </select>
+          <button className="btn" onClick={addCategory}>Add category</button>
+        </div>
+        {categories.length === 0 ? (
+          <div className="text-sm opacity-60">No categories yet.</div>
+        ) : (
+          <ul className="space-y-3">
+            {categories.map(c => (
+              <li key={c.id} className="p-3 rounded bg-base-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{c.name}</div>
+                    <div className="text-xs opacity-70 flex gap-2">
+                      {(typeof c.minAge === 'number' || typeof c.maxAge === 'number') && <span>{c.minAge ?? '-'} - {c.maxAge ?? '-'} yrs</span>}
+                      <span>{c.gender}</span>
+                      <span>{c.format}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="btn btn-xs" onClick={() => setEditingCategory({ categoryId: c.id, data: { name: c.name, minAge: c.minAge ?? null, maxAge: c.maxAge ?? null, gender: c.gender, format: c.format } })}>Edit</button>
+                    <button className="btn btn-xs btn-error" onClick={() => deleteCategory(c.id)}>Delete</button>
+                  </div>
+                </div>
+                <CategoryEntries
+                  tournamentId={id}
+                  category={{ id: c.id, name: c.name, format: c.format }}
+                  players={players}
+                  teams={teams}
+                  onAddRequest={() => { setEntryModal({ categoryId: c.id, categoryName: c.name, format: c.format }); setEntrySelected('') }}
+                  onDeleteEntry={(entryId) => deleteEntry(c.id, entryId)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {msg && <p className="text-sm opacity-80">{msg}</p>}
+
+      {editingCategory && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Edit category</h3>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+              <input className="input input-bordered" placeholder="Name" value={editingCategory.data.name} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, name: e.target.value } })} />
+              <input type="number" className="input input-bordered" placeholder="Min age" value={editingCategory.data.minAge ?? ''} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, minAge: e.target.value ? Number(e.target.value) : null } })} />
+              <input type="number" className="input input-bordered" placeholder="Max age" value={editingCategory.data.maxAge ?? ''} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, maxAge: e.target.value ? Number(e.target.value) : null } })} />
+              <select className="select select-bordered" value={editingCategory.data.gender} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, gender: e.target.value as any } })}>
+                <option>Open</option>
+                <option>Male</option>
+                <option>Female</option>
+              </select>
+              <select className="select select-bordered" value={editingCategory.data.format} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, format: e.target.value as any } })}>
+                <option>Singles</option>
+                <option>Doubles</option>
+              </select>
+              <div />
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setEditingCategory(null)}>Close</button>
+              <button className="btn btn-primary" onClick={saveCategoryEdit}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {entryModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Add entry to {entryModal.categoryName}</h3>
+            <div className="mt-4">
+              {entryModal.format === 'Singles' ? (
+                <select className="select select-bordered w-full" value={entrySelected} onChange={(e) => setEntrySelected(e.target.value)}>
+                  <option value="" disabled>Select player</option>
+                  {players.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
+                </select>
+              ) : (
+                <select className="select select-bordered w-full" value={entrySelected} onChange={(e) => setEntrySelected(e.target.value)}>
+                  <option value="" disabled>Select team</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name ?? t.id}</option>)}
+                </select>
+              )}
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setEntryModal(null)}>Close</button>
+              <button className="btn btn-primary" onClick={addEntry} disabled={!entrySelected}>Add</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function CategoryEntries({ tournamentId, category, players, teams, onAddRequest, onDeleteEntry }: Readonly<{ tournamentId: string; category: { id: string; name: string; format: 'Singles' | 'Doubles' }; players: Array<{ id: string; name?: string }>; teams: Array<{ id: string; name?: string | null }>; onAddRequest: () => void; onDeleteEntry: (entryId: string) => void }>) {
+  const [entries, setEntries] = useState<Array<{ id: string; playerId?: string; teamId?: string }>>([])
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', category.id, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+    return () => unsub()
+  }, [tournamentId, category.id])
+  return (
+    <div className="mt-3 p-2 rounded bg-base-100">
+      <div className="flex justify-between items-center">
+        <h5 className="font-medium text-sm">Entries</h5>
+        <button className="btn btn-xs" onClick={onAddRequest}>Add entry</button>
+      </div>
+      {entries.length === 0 ? <div className="text-xs opacity-60">No entries yet.</div> : (
+        <ul className="mt-2 space-y-1">
+          {entries.map(e => (
+            <li key={e.id} className="flex justify-between items-center text-sm">
+              <span>{category.format === 'Singles' ? `Player: ${resolveName(players, e.playerId)}` : `Team: ${resolveTeamName(teams, e.teamId)}`}</span>
+              <button className="btn btn-ghost btn-xs" onClick={() => onDeleteEntry(e.id)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function resolveName(players: Array<{ id: string; name?: string }>, id?: string) {
+  if (!id) return ''
+  const p = players.find(p => p.id === id)
+  return p?.name || id
+}
+
+function resolveTeamName(teams: Array<{ id: string; name?: string | null }>, id?: string) {
+  if (!id) return ''
+  const t = teams.find(t => t.id === id)
+  return t?.name || id
 }
