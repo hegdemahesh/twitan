@@ -14,6 +14,9 @@ export const EventNames = {
   AddTeam: 'addTeam',
   AddEntry: 'addEntry',
   DeleteEntry: 'deleteEntry',
+  AddTournamentRoleByPhone: 'addTournamentRoleByPhone',
+  DeleteTournamentRole: 'deleteTournamentRole',
+  AddPlayerByPhone: 'addPlayerByPhone',
   },
 } as const
 
@@ -91,6 +94,22 @@ export type EventPayloadMap = {
       tournamentId: string
       categoryId: string
       entryId: string
+    }
+    [EventNames.Tournament.AddTournamentRoleByPhone]: {
+      tournamentId: string
+      role: 'admin' | 'scorer'
+      phoneNumber: string // E.164
+    }
+    [EventNames.Tournament.DeleteTournamentRole]: {
+      tournamentId: string
+      roleId: string
+    }
+    [EventNames.Tournament.AddPlayerByPhone]: {
+      tournamentId: string
+      phoneNumber: string
+      name?: string
+      dob?: string
+      gender?: 'Male' | 'Female' | 'Other'
     }
   }
 }
@@ -171,5 +190,26 @@ export function isTournamentDeleteEntry(e: EventDoc): e is EventDoc<typeof Event
   return (
     e.eventType === EventTypes.Tournament &&
     e.eventName === EventNames.Tournament.DeleteEntry
+  )
+}
+
+export function isTournamentAddRoleByPhone(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddTournamentRoleByPhone> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.AddTournamentRoleByPhone
+  )
+}
+
+export function isTournamentDeleteRole(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.DeleteTournamentRole> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.DeleteTournamentRole
+  )
+}
+
+export function isTournamentAddPlayerByPhone(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddPlayerByPhone> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.AddPlayerByPhone
   )
 }

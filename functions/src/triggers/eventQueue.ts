@@ -104,6 +104,36 @@ export const onEventQueued = functions
           await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp(), result: { tournamentId: payload.tournamentId, categoryId: payload.categoryId, entryId: payload.entryId, action: 'deleted' } })
           return
         }
+        case EventNames.Tournament.AddTournamentRoleByPhone: {
+          const payload = data.eventPayload as { tournamentId: string; role: 'admin' | 'scorer'; phoneNumber: string }
+          const ref = await db.collection('tournaments').doc(payload.tournamentId).collection('roles').add({
+            role: payload.role,
+            phoneNumber: payload.phoneNumber,
+            createdAt: FieldValue.serverTimestamp(),
+            createdBy: data.callerUid ?? null,
+          })
+          await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp(), result: { tournamentId: payload.tournamentId, roleId: ref.id } })
+          return
+        }
+        case EventNames.Tournament.DeleteTournamentRole: {
+          const payload = data.eventPayload as { tournamentId: string; roleId: string }
+          await db.collection('tournaments').doc(payload.tournamentId).collection('roles').doc(payload.roleId).delete()
+          await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp(), result: { tournamentId: payload.tournamentId, roleId: payload.roleId, action: 'deleted' } })
+          return
+        }
+        case EventNames.Tournament.AddPlayerByPhone: {
+          const payload = data.eventPayload as { tournamentId: string; phoneNumber: string; name?: string; dob?: string; gender?: 'Male' | 'Female' | 'Other' }
+          const ref = await db.collection('tournaments').doc(payload.tournamentId).collection('players').add({
+            name: payload.name ?? null,
+            dob: payload.dob ?? null,
+            gender: payload.gender ?? null,
+            phoneNumber: payload.phoneNumber,
+            createdAt: FieldValue.serverTimestamp(),
+            createdBy: data.callerUid ?? null,
+          })
+          await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp(), result: { tournamentId: payload.tournamentId, playerId: ref.id } })
+          return
+        }
         default: {
           await snap.ref.update({ status: 'ignored', processedAt: FieldValue.serverTimestamp(), reason: 'Unknown event' })
           return

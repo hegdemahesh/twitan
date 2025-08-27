@@ -4,10 +4,12 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import './styles.css'
 import App from './pages/App'
 import Home from './pages/Home'
+import TournamentEdit from './pages/TournamentEdit'
 
 const router = createBrowserRouter([
   { path: '/', element: <App /> },
   { path: '/home', element: <Home /> },
+  { path: '/tournament', element: <TournamentEdit /> },
 ])
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

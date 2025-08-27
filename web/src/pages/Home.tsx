@@ -173,7 +173,8 @@ export default function Home() {
                   <div className="flex items-center gap-2">
                     {t.status && t.status !== 'active' && <span className="badge">{t.status}</span>}
                     <button className="btn btn-xs" onClick={() => setExpanded((e) => ({ ...e, [t.id]: !e[t.id] }))}>{expanded[t.id] ? 'Collapse' : 'Expand'}</button>
-                    <button className="btn btn-xs" onClick={() => openEdit(t.id)}>Edit tournament</button>
+                    <button className="btn btn-xs" onClick={() => openEdit(t.id)}>Quick edit</button>
+                    <button className="btn btn-xs btn-primary" onClick={() => nav(`/tournament?id=${t.id}`)}>Manage</button>
                     <button className="btn btn-xs btn-error" onClick={() => deleteTournament(t.id)}>Delete</button>
                   </div>
                 </div>
