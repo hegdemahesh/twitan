@@ -4,6 +4,7 @@ import { auth, db, functions, httpsCallable, onAuthStateChanged } from '../lib/f
 import { collection, doc, onSnapshot } from 'firebase/firestore'
 import { EventNames, EventTypes } from '../../../shared/events'
 import Header from '../components/Header'
+import { FiUsers, FiGrid, FiSliders, FiChevronLeft } from 'react-icons/fi'
 
 type PlayerGender = 'Male' | 'Female' | 'Other'
 type CategoryGender = 'Male' | 'Female' | 'Open'
@@ -160,8 +161,8 @@ export default function TournamentEdit() {
       <Header />
       <main className="max-w-5xl w-full mx-auto p-4 flex-1 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Tournament dashboard</h2>
-        <button className="btn" onClick={() => nav('/home')}>Back</button>
+  <h2 className="text-xl font-semibold flex items-center gap-2"><FiSliders /> Tournament dashboard</h2>
+  <button className="btn btn-ghost gap-2" onClick={() => nav('/home')}><FiChevronLeft /> Back</button>
       </div>
       {tournament && (
         <div className="card bg-base-100 shadow p-4">
@@ -171,9 +172,9 @@ export default function TournamentEdit() {
       )}
 
       <div role="tablist" className="tabs tabs-boxed">
-        <button role="tab" className={`tab ${tab === 'dashboard' ? 'tab-active' : ''}`} onClick={() => setTab('dashboard')}>Dashboard</button>
-        <button role="tab" className={`tab ${tab === 'players' ? 'tab-active' : ''}`} onClick={() => setTab('players')}>Players</button>
-        <button role="tab" className={`tab ${tab === 'fixtures' ? 'tab-active' : ''}`} onClick={() => setTab('fixtures')}>Fixtures</button>
+        <button role="tab" className={`tab gap-2 ${tab === 'dashboard' ? 'tab-active' : ''}`} onClick={() => setTab('dashboard')}><FiSliders /> <span className="hidden sm:inline">Dashboard</span></button>
+        <button role="tab" className={`tab gap-2 ${tab === 'players' ? 'tab-active' : ''}`} onClick={() => setTab('players')}><FiUsers /> <span className="hidden sm:inline">Players</span></button>
+        <button role="tab" className={`tab gap-2 ${tab === 'fixtures' ? 'tab-active' : ''}`} onClick={() => setTab('fixtures')}><FiGrid /> <span className="hidden sm:inline">Fixtures</span></button>
       </div>
 
       {tab === 'dashboard' && (

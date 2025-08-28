@@ -4,6 +4,7 @@ import { EventTypes, EventNames } from '../../../shared/events'
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
+import { FiHome, FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi'
 
 export default function Home() {
   const [name, setName] = useState('')
@@ -80,7 +81,7 @@ export default function Home() {
       <main className="max-w-3xl w-full mx-auto p-4 flex-1">
       <div className="card bg-base-100 shadow-md p-6 gap-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Home</h2>
+          <h2 className="text-xl font-semibold flex items-center gap-2"><FiHome /> Home</h2>
         </div>
         {isEmulator && (
           <div className="alert alert-info">
@@ -89,7 +90,7 @@ export default function Home() {
         )}
         <label className="label" htmlFor="tname">Tournament name</label>
         <input id="tname" className="input input-bordered w-full" placeholder="Summer Open 2025" value={name} onChange={(e) => setName(e.target.value)} />
-        <button className="btn btn-primary" onClick={createTournament}>Create a new tournament</button>
+  <button className="btn btn-primary gap-2" onClick={createTournament}><FiPlus /> Create a new tournament</button>
         {msg && <p className="text-sm opacity-80">{msg}</p>}
         <div className="divider">Your tournaments</div>
         {visibleTournaments.length === 0 ? (
@@ -102,8 +103,8 @@ export default function Home() {
                   <span>{t.name} <span className="badge badge-ghost ml-2">{t.type}</span></span>
                   <div className="flex items-center gap-2">
                     {t.status && t.status !== 'active' && <span className="badge">{t.status}</span>}
-                    <button className="btn btn-xs btn-primary" onClick={() => nav(`/tournament?id=${t.id}`)}>Edit</button>
-                    <button className="btn btn-xs btn-error" onClick={() => deleteTournament(t.id)}>Delete</button>
+                    <button className="btn btn-xs btn-primary gap-1" onClick={() => nav(`/tournament?id=${t.id}`)}><FiEdit2 /> Edit</button>
+                    <button className="btn btn-xs btn-error gap-1" onClick={() => deleteTournament(t.id)}><FiTrash2 /> Delete</button>
                   </div>
                 </div>
               </li>
