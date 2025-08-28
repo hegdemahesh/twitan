@@ -34,6 +34,10 @@ export default function TournamentEdit() {
   const [editingCategory, setEditingCategory] = useState<null | { categoryId: string; data: { name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat } }>(null)
   const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat }>(null)
   const [entrySelected, setEntrySelected] = useState<string>('')
+  const [tab, setTab] = useState<'dashboard'|'players'|'fixtures'>('dashboard')
+  const [brackets, setBrackets] = useState<Array<{ id: string; name: string; categoryId: string; format: CategoryFormat; status: string }>>([])
+  const [scoreModal, setScoreModal] = useState<null | { bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' }>(null)
+  const [newBracketCategoryId, setNewBracketCategoryId] = useState<string>('')
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { if (!u) nav('/') })
@@ -45,9 +49,10 @@ export default function TournamentEdit() {
     const unsubT = onSnapshot(doc(db, 'tournaments', id), (d) => setTournament({ id: d.id, ...d.data() }))
     const unsubR = onSnapshot(collection(db, 'tournaments', id, 'roles'), (snap) => setRoles(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     const unsubP = onSnapshot(collection(db, 'tournaments', id, 'players'), (snap) => setPlayers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
-    const unsubC = onSnapshot(collection(db, 'tournaments', id, 'categories'), (snap) => setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+  const unsubC = onSnapshot(collection(db, 'tournaments', id, 'categories'), (snap) => setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     const unsubTm = onSnapshot(collection(db, 'tournaments', id, 'teams'), (snap) => setTeams(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
-    return () => { unsubT(); unsubR(); unsubP(); unsubC(); unsubTm() }
+  const unsubB = onSnapshot(collection(db, 'tournaments', id, 'brackets'), (snap) => setBrackets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+  return () => { unsubT(); unsubR(); unsubP(); unsubC(); unsubTm(); unsubB() }
   }, [id])
 
   if (!id) return <div className="p-4">Missing tournament id</div>
@@ -135,10 +140,24 @@ export default function TournamentEdit() {
     await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteEntry, eventPayload: { tournamentId: id, categoryId, entryId } })
   }
 
+  async function createBracket() {
+    if (!newBracketCategoryId) return
+    const call = httpsCallable(functions, 'addEvent')
+    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.CreateBracketFromCategory, eventPayload: { tournamentId: id, categoryId: newBracketCategoryId } })
+    setNewBracketCategoryId('')
+  }
+
+  async function saveScore() {
+    if (!scoreModal) return
+    const call = httpsCallable(functions, 'addEvent')
+    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateMatchScore, eventPayload: { tournamentId: id, bracketId: scoreModal.bracketId, matchId: scoreModal.matchId, scores: scoreModal.scores, status: scoreModal.status } })
+    setScoreModal(null)
+  }
+
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Edit tournament</h2>
+        <h2 className="text-xl font-semibold">Tournament dashboard</h2>
         <button className="btn" onClick={() => nav('/home')}>Back</button>
       </div>
       {tournament && (
@@ -148,6 +167,13 @@ export default function TournamentEdit() {
         </div>
       )}
 
+      <div role="tablist" className="tabs tabs-boxed">
+        <button role="tab" className={`tab ${tab === 'dashboard' ? 'tab-active' : ''}`} onClick={() => setTab('dashboard')}>Dashboard</button>
+        <button role="tab" className={`tab ${tab === 'players' ? 'tab-active' : ''}`} onClick={() => setTab('players')}>Players</button>
+        <button role="tab" className={`tab ${tab === 'fixtures' ? 'tab-active' : ''}`} onClick={() => setTab('fixtures')}>Fixtures</button>
+      </div>
+
+      {tab === 'dashboard' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Admins & scorers</div>
         <div className="flex gap-2">
@@ -167,7 +193,8 @@ export default function TournamentEdit() {
           ))}
         </ul>
       </div>
-
+      )}
+      {tab === 'players' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Players</div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
@@ -202,7 +229,8 @@ export default function TournamentEdit() {
           ))}
         </ul>
       </div>
-
+      )}
+      {tab === 'players' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Teams</div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
@@ -225,7 +253,8 @@ export default function TournamentEdit() {
           ))}
         </ul>
       </div>
-
+      )}
+      {tab === 'players' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Categories</div>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
@@ -276,6 +305,29 @@ export default function TournamentEdit() {
           </ul>
         )}
       </div>
+      )}
+
+      {tab === 'fixtures' && (
+      <div className="card bg-base-100 shadow p-4 space-y-3">
+        <div className="font-medium">Fixtures & brackets</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <select className="select select-bordered" value={newBracketCategoryId} onChange={(e) => setNewBracketCategoryId(e.target.value)}>
+            <option value="">Select category</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name} • {c.format}</option>)}
+          </select>
+          <button className="btn" onClick={createBracket} disabled={!newBracketCategoryId}>Create bracket</button>
+        </div>
+        {brackets.length === 0 ? (
+          <div className="text-sm opacity-60">No brackets yet.</div>
+        ) : (
+          <ul className="space-y-3">
+            {brackets.map(b => (
+              <BracketCard key={b.id} tournamentId={id} bracket={b} onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })} />
+            ))}
+          </ul>
+        )}
+      </div>
+      )}
 
       {msg && <p className="text-sm opacity-80">{msg}</p>}
 
@@ -330,6 +382,30 @@ export default function TournamentEdit() {
           </div>
         </div>
       )}
+
+      {scoreModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Score match</h3>
+            <div className="mt-4 grid grid-cols-3 gap-2 items-end">
+              {[0,1,2].map(i => (
+                <div key={i} className="grid grid-cols-2 gap-2">
+                  <input type="number" className="input input-bordered" placeholder={`Set ${i+1} A`} value={scoreModal.scores[i]?.a ?? ''} onChange={(e) => setScoreModal({ ...scoreModal, scores: updateSet(scoreModal.scores, i, { a: Number(e.target.value || 0), b: scoreModal.scores[i]?.b ?? 0 }) })} />
+                  <input type="number" className="input input-bordered" placeholder={`Set ${i+1} B`} value={scoreModal.scores[i]?.b ?? ''} onChange={(e) => setScoreModal({ ...scoreModal, scores: updateSet(scoreModal.scores, i, { a: scoreModal.scores[i]?.a ?? 0, b: Number(e.target.value || 0) }) })} />
+                </div>
+              ))}
+              <select className="select select-bordered" value={scoreModal.status} onChange={(e) => setScoreModal({ ...scoreModal, status: e.target.value as any })}>
+                <option value="in-progress">In progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setScoreModal(null)}>Close</button>
+              <button className="btn btn-primary" onClick={saveScore}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -370,4 +446,49 @@ function resolveTeamName(teams: Array<{ id: string; name?: string | null }>, id?
   if (!id) return ''
   const t = teams.find(t => t.id === id)
   return t?.name || id
+}
+
+function updateSet(arr: Array<{ a: number; b: number }>, i: number, v: { a: number; b: number }) {
+  const copy = [...arr]
+  copy[i] = v
+  return copy
+}
+
+function BracketCard({ tournamentId, bracket, onOpenScore }: Readonly<{ tournamentId: string; bracket: { id: string; name: string; categoryId: string; format: CategoryFormat; status: string }; onOpenScore: (matchId: string, scores: Array<{ a: number; b: number }>, status: 'in-progress'|'completed') => void }>) {
+  const [matches, setMatches] = useState<Array<{ id: string; round: number; order: number; participantA?: any; participantB?: any; scores: Array<{ a: number; b: number }>; status: string }>>([])
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'brackets', bracket.id, 'matches'), (snap) => setMatches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+    return () => unsub()
+  }, [tournamentId, bracket.id])
+  const grouped = matches.reduce((acc: Record<number, Array<any>>, m) => {
+    const arr = acc[m.round] || []
+    arr.push(m)
+    acc[m.round] = arr
+    return acc
+  }, {})
+  const rounds = Object.keys(grouped).map(n => Number(n)).sort((a,b) => a-b)
+  return (
+    <li className="p-3 rounded bg-base-200">
+  <div className="font-medium mb-2">{bracket.name} <span className="badge ml-2">{bracket.status}</span></div>
+      <div className="overflow-x-auto">
+        <div className="flex gap-4">
+          {rounds.map(r => (
+            <div key={r} className="space-y-2 min-w-[220px]">
+              <div className="text-xs opacity-60">Round {r}</div>
+              {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
+                <div key={m.id} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
+                  <div>
+                    <div>A: {m.participantA?.entryId ?? '-'}</div>
+                    <div>B: {m.participantB?.entryId ?? '-'}</div>
+                    <div className="text-xs opacity-70">{m.scores.map((s:any,i:number)=>`[${s.a}-${s.b}]`).join(' ')}</div>
+                  </div>
+                  <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scores ?? [], m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </li>
+  )
 }

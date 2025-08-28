@@ -7,6 +7,7 @@ import { addEventNote } from '../handlers/tournament/notes'
 import { addCategories, deleteCategory, updateCategory } from '../handlers/tournament/categories'
 import { addPlayer, addPlayerByPhone, addTeam, addRoleByPhone, deleteRole } from '../handlers/tournament/people'
 import { addEntry, deleteEntry } from '../handlers/tournament/entries'
+import { createBracketFromCategory, updateMatchScore } from '../handlers/tournament/brackets'
 
 export const onEventQueued = functions
   .region("us-central1")
@@ -45,6 +46,9 @@ export const onEventQueued = functions
         // Entries
         [EventNames.Tournament.AddEntry]: addEntry,
         [EventNames.Tournament.DeleteEntry]: deleteEntry,
+  // Brackets & scoring
+  [EventNames.Tournament.CreateBracketFromCategory]: createBracketFromCategory,
+  [EventNames.Tournament.UpdateMatchScore]: updateMatchScore,
       }
 
       const handler = registry[data.eventName]

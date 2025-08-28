@@ -17,6 +17,8 @@ export const EventNames = {
   AddTournamentRoleByPhone: 'addTournamentRoleByPhone',
   DeleteTournamentRole: 'deleteTournamentRole',
   AddPlayerByPhone: 'addPlayerByPhone',
+  CreateBracketFromCategory: 'createBracketFromCategory',
+  UpdateMatchScore: 'updateMatchScore',
   },
 } as const
 
@@ -110,6 +112,18 @@ export type EventPayloadMap = {
       name?: string
       dob?: string
       gender?: 'Male' | 'Female' | 'Other'
+    }
+    [EventNames.Tournament.CreateBracketFromCategory]: {
+      tournamentId: string
+      categoryId: string
+      bracketName?: string
+    }
+    [EventNames.Tournament.UpdateMatchScore]: {
+      tournamentId: string
+      bracketId: string
+      matchId: string
+      scores: Array<{ a: number; b: number }>
+      status: 'in-progress' | 'completed'
     }
   }
 }
@@ -211,5 +225,19 @@ export function isTournamentAddPlayerByPhone(e: EventDoc): e is EventDoc<typeof 
   return (
     e.eventType === EventTypes.Tournament &&
     e.eventName === EventNames.Tournament.AddPlayerByPhone
+  )
+}
+
+export function isTournamentCreateBracket(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.CreateBracketFromCategory> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.CreateBracketFromCategory
+  )
+}
+
+export function isTournamentUpdateMatchScore(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.UpdateMatchScore> {
+  return (
+    e.eventType === EventTypes.Tournament &&
+    e.eventName === EventNames.Tournament.UpdateMatchScore
   )
 }

@@ -1,1 +1,1 @@
-{"root":["./src/main.tsx","./src/vite-env.d.ts","./src/lib/firebase.ts","./src/pages/app.tsx","./src/pages/home.tsx","../shared/events.ts"],"version":"5.9.2"}
+{"root":["./src/main.tsx","./src/vite-env.d.ts","./src/lib/firebase.ts","./src/pages/app.tsx","./src/pages/home.tsx","./src/pages/tournamentedit.tsx","../shared/events.ts"],"version":"5.9.2"}
