@@ -26,18 +26,6 @@ export const addPlayerByPhone: Handler = async ({ db, snap, data }) => {
   await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp(), result: { tournamentId: payload.tournamentId, playerId: ref.id } })
 }
 
-export const addTeam: Handler = async ({ db, snap, data }) => {
-  const payload = data.eventPayload as { tournamentId: string; player1Id: string; player2Id: string; name?: string | null }
-  const ref = await db.collection('tournaments').doc(payload.tournamentId).collection('teams').add({
-    name: payload.name ?? null,
-    player1Id: payload.player1Id,
-    player2Id: payload.player2Id,
-    createdAt: FieldValue.serverTimestamp(),
-    createdBy: data.callerUid ?? null,
-  })
-  await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp(), result: { tournamentId: payload.tournamentId, teamId: ref.id } })
-}
-
 export const addRoleByPhone: Handler = async ({ db, snap, data }) => {
   const payload = data.eventPayload as { tournamentId: string; role: 'admin' | 'scorer'; phoneNumber: string }
   const ref = await db.collection('tournaments').doc(payload.tournamentId).collection('roles').add({

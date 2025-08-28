@@ -5,7 +5,7 @@ import { Handler } from '../handlers/types'
 import { createTournament, deleteTournament } from '../handlers/tournament/lifecycle'
 import { addEventNote } from '../handlers/tournament/notes'
 import { addCategories, deleteCategory, updateCategory } from '../handlers/tournament/categories'
-import { addPlayer, addPlayerByPhone, addTeam, addRoleByPhone, deleteRole } from '../handlers/tournament/people'
+import { addPlayer, addPlayerByPhone, addRoleByPhone, deleteRole } from '../handlers/tournament/people'
 import { addEntry, deleteEntry } from '../handlers/tournament/entries'
 import { createBracketFromCategory, updateMatchScore } from '../handlers/tournament/brackets'
 
@@ -40,7 +40,6 @@ export const onEventQueued = functions
         // People
         [EventNames.Tournament.AddPlayer]: addPlayer,
         [EventNames.Tournament.AddPlayerByPhone]: addPlayerByPhone,
-        [EventNames.Tournament.AddTeam]: addTeam,
         [EventNames.Tournament.AddTournamentRoleByPhone]: addRoleByPhone,
         [EventNames.Tournament.DeleteTournamentRole]: deleteRole,
         // Entries

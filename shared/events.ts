@@ -11,7 +11,6 @@ export const EventNames = {
   DeleteTournamentCategory: 'deleteTournamentCategory',
   UpdateTournamentCategory: 'updateTournamentCategory',
   AddPlayer: 'addPlayer',
-  AddTeam: 'addTeam',
   AddEntry: 'addEntry',
   DeleteEntry: 'deleteEntry',
   AddTournamentRoleByPhone: 'addTournamentRoleByPhone',
@@ -74,12 +73,6 @@ export type EventPayloadMap = {
         gender: 'Male' | 'Female' | 'Other'
       }
     }
-    [EventNames.Tournament.AddTeam]: {
-      tournamentId: string
-      player1Id: string
-      player2Id: string
-      name?: string | null
-    }
     [EventNames.Tournament.AddEntry]: (
       | {
           tournamentId: string
@@ -91,7 +84,8 @@ export type EventPayloadMap = {
           tournamentId: string
           categoryId: string
           format: 'Doubles'
-          teamId: string
+          player1Id: string
+          player2Id: string
         }
     )
     [EventNames.Tournament.DeleteEntry]: {
@@ -188,12 +182,7 @@ export function isTournamentAddPlayer(e: EventDoc): e is EventDoc<typeof EventTy
   )
 }
 
-export function isTournamentAddTeam(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddTeam> {
-  return (
-    e.eventType === EventTypes.Tournament &&
-    e.eventName === EventNames.Tournament.AddTeam
-  )
-}
+// Removed: AddTeam event and its type guard
 
 export function isTournamentAddEntry(e: EventDoc): e is EventDoc<typeof EventTypes.Tournament, typeof EventNames.Tournament.AddEntry> {
   return (

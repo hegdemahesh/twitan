@@ -10,10 +10,9 @@ import CountryPhoneInput from '../components/CountryPhoneInput'
 type PlayerGender = 'Male' | 'Female' | 'Other'
 type CategoryGender = 'Male' | 'Female' | 'Open'
 type CategoryFormat = 'Singles' | 'Doubles'
-type Team = { id: string; name?: string | null; player1Id: string; player2Id: string }
 type Player = { id: string; name?: string; phoneNumber?: string; gender?: PlayerGender; dob?: string }
 type Category = { id: string; name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat }
-type Entry = { id: string; playerId?: string; teamId?: string }
+type Entry = { id: string; playerId?: string; player1Id?: string; player2Id?: string; teamId?: string }
 
 export default function TournamentEdit() {
   const [params] = useSearchParams()
@@ -23,7 +22,6 @@ export default function TournamentEdit() {
   const [tournament, setTournament] = useState<any>(null)
   const [roles, setRoles] = useState<Array<{ id: string; role: 'admin' | 'scorer'; phoneNumber: string }>>([])
   const [players, setPlayers] = useState<Player[]>([])
-  const [teams, setTeams] = useState<Team[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [phone, setPhone] = useState('')
   const [role, setRole] = useState<'admin' | 'scorer'>('admin')
@@ -31,12 +29,11 @@ export default function TournamentEdit() {
   const [playerName, setPlayerName] = useState('')
   const [playerDob, setPlayerDob] = useState('')
   const [playerGender, setPlayerGender] = useState<PlayerGender>('Male')
-  const [manualPlayer, setManualPlayer] = useState<{ name: string; dob: string; gender: PlayerGender }>({ name: '', dob: '', gender: 'Male' })
-  const [teamForm, setTeamForm] = useState<{ name?: string; p1?: string; p2?: string }>({})
   const [catForm, setCatForm] = useState<{ name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat }>({ name: '', gender: 'Open', format: 'Singles' })
   const [editingCategory, setEditingCategory] = useState<null | { categoryId: string; data: { name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat } }>(null)
   const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat }>(null)
   const [entrySelected, setEntrySelected] = useState<string>('')
+  const [entrySelectedP2, setEntrySelectedP2] = useState<string>('')
   const [tab, setTab] = useState<'dashboard'|'players'|'fixtures'>('dashboard')
   const [brackets, setBrackets] = useState<Array<{ id: string; name: string; categoryId: string; format: CategoryFormat; status: string }>>([])
   const [scoreModal, setScoreModal] = useState<null | { bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' }>(null)
@@ -49,13 +46,12 @@ export default function TournamentEdit() {
 
   useEffect(() => {
     if (!id) return
-    const unsubT = onSnapshot(doc(db, 'tournaments', id), (d) => setTournament({ id: d.id, ...d.data() }))
+  const unsubT = onSnapshot(doc(db, 'tournaments', id), (d) => setTournament({ id: d.id, ...d.data() }))
     const unsubR = onSnapshot(collection(db, 'tournaments', id, 'roles'), (snap) => setRoles(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     const unsubP = onSnapshot(collection(db, 'tournaments', id, 'players'), (snap) => setPlayers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
   const unsubC = onSnapshot(collection(db, 'tournaments', id, 'categories'), (snap) => setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
-    const unsubTm = onSnapshot(collection(db, 'tournaments', id, 'teams'), (snap) => setTeams(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
   const unsubB = onSnapshot(collection(db, 'tournaments', id, 'brackets'), (snap) => setBrackets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
-  return () => { unsubT(); unsubR(); unsubP(); unsubC(); unsubTm(); unsubB() }
+  return () => { unsubT(); unsubR(); unsubP(); unsubC(); unsubB() }
   }, [id])
 
   if (!id) return <div className="p-4">Missing tournament id</div>
@@ -86,22 +82,7 @@ export default function TournamentEdit() {
     } catch (e: any) { setMsg(e.message || String(e)) }
   }
 
-  async function addManualPlayer() {
-    try {
-      const call = httpsCallable(functions, 'addEvent')
-      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddPlayer, eventPayload: { tournamentId: id, player: manualPlayer } })
-      setManualPlayer({ name: '', dob: '', gender: 'Male' })
-    } catch (e: any) { setMsg(e.message || String(e)) }
-  }
-
-  async function addTeam() {
-    try {
-      if (!teamForm.p1 || !teamForm.p2 || teamForm.p1 === teamForm.p2) return
-      const call = httpsCallable(functions, 'addEvent')
-      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddTeam, eventPayload: { tournamentId: id, player1Id: teamForm.p1, player2Id: teamForm.p2, name: teamForm.name ?? null } })
-      setTeamForm({})
-    } catch (e: any) { setMsg(e.message || String(e)) }
-  }
+  // manual player and teams removed by requirement
 
   async function addCategory() {
     try {
@@ -127,14 +108,17 @@ export default function TournamentEdit() {
   }
 
   async function addEntry() {
-    if (!entryModal || !entrySelected) return
+    if (!entryModal) return
     const call = httpsCallable(functions, 'addEvent')
     if (entryModal.format === 'Singles') {
+      if (!entrySelected) return
       await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Singles', playerId: entrySelected } })
     } else {
-      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Doubles', teamId: entrySelected } })
+      if (!entrySelected || !entrySelectedP2 || entrySelected === entrySelectedP2) return
+      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Doubles', player1Id: entrySelected, player2Id: entrySelectedP2 } as any })
     }
     setEntrySelected('')
+    setEntrySelectedP2('')
     setEntryModal(null)
   }
 
@@ -213,47 +197,11 @@ export default function TournamentEdit() {
           </select>
           <button className="btn" onClick={addPlayerByPhone}>Add player</button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-          <input className="input input-bordered" placeholder="Name" value={manualPlayer.name} onChange={(e) => setManualPlayer({ ...manualPlayer, name: e.target.value })} />
-          <input type="date" className="input input-bordered" value={manualPlayer.dob} onChange={(e) => setManualPlayer({ ...manualPlayer, dob: e.target.value })} />
-          <select className="select select-bordered" value={manualPlayer.gender} onChange={(e) => setManualPlayer({ ...manualPlayer, gender: e.target.value as any })}>
-            <option>Male</option>
-            <option>Female</option>
-            <option>Other</option>
-          </select>
-          <div className="md:col-span-2 flex items-center">
-            <button className="btn" onClick={addManualPlayer}>Add manual player</button>
-          </div>
-        </div>
         <ul className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
           {players.map(p => (
             <li key={p.id} className="bg-base-200 rounded p-2 text-sm flex justify-between">
               <span>{p.name ?? '(no name)'} • {p.phoneNumber ?? ''}</span>
               <span className="opacity-60">{p.gender ?? ''} {p.dob ? `• ${p.dob}` : ''}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      )}
-      {tab === 'players' && (
-      <div className="card bg-base-100 shadow p-4 space-y-3">
-        <div className="font-medium">Teams</div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-          <input className="input input-bordered" placeholder="Team name (optional)" value={teamForm.name ?? ''} onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })} />
-          <select className="select select-bordered" value={teamForm.p1 ?? ''} onChange={(e) => setTeamForm({ ...teamForm, p1: e.target.value })}>
-            <option value="" disabled>Select player 1</option>
-            {players.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
-          </select>
-          <select className="select select-bordered" value={teamForm.p2 ?? ''} onChange={(e) => setTeamForm({ ...teamForm, p2: e.target.value })}>
-            <option value="" disabled>Select player 2</option>
-            {players.map(p => <option key={p.id} value={p.id} disabled={p.id === teamForm.p1}>{p.name ?? p.id}</option>)}
-          </select>
-          <button className="btn" onClick={addTeam} disabled={!teamForm.p1 || !teamForm.p2 || teamForm.p1 === teamForm.p2}>Add team</button>
-        </div>
-        <ul className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-          {teams.map(t => (
-            <li key={t.id} className="p-2 rounded bg-base-200 text-sm">
-              <span>{t.name ?? 'Team'} <span className="opacity-60">({t.player1Id} & {t.player2Id})</span></span>
             </li>
           ))}
         </ul>
@@ -301,7 +249,6 @@ export default function TournamentEdit() {
                   tournamentId={id}
                   category={{ id: c.id, name: c.name, format: c.format }}
                   players={players}
-                  teams={teams}
                   onAddRequest={() => { setEntryModal({ categoryId: c.id, categoryName: c.name, format: c.format }); setEntrySelected('') }}
                   onDeleteEntry={(entryId) => deleteEntry(c.id, entryId)}
                 />
@@ -374,15 +321,21 @@ export default function TournamentEdit() {
                   {players.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
                 </select>
               ) : (
-                <select className="select select-bordered w-full" value={entrySelected} onChange={(e) => setEntrySelected(e.target.value)}>
-                  <option value="" disabled>Select team</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name ?? t.id}</option>)}
-                </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <select className="select select-bordered w-full" value={entrySelected} onChange={(e) => setEntrySelected(e.target.value)}>
+                    <option value="" disabled>Select player 1</option>
+                    {players.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
+                  </select>
+                  <select className="select select-bordered w-full" value={entrySelectedP2} onChange={(e) => setEntrySelectedP2(e.target.value)}>
+                    <option value="" disabled>Select player 2</option>
+                    {players.map(p => <option key={p.id} value={p.id} disabled={p.id === entrySelected}>{p.name ?? p.id}</option>)}
+                  </select>
+                </div>
               )}
             </div>
             <div className="modal-action">
               <button className="btn" onClick={() => setEntryModal(null)}>Close</button>
-              <button className="btn btn-primary" onClick={addEntry} disabled={!entrySelected}>Add</button>
+              <button className="btn btn-primary" onClick={addEntry} disabled={entryModal.format === 'Singles' ? !entrySelected : (!entrySelected || !entrySelectedP2 || entrySelected === entrySelectedP2)}>Add</button>
             </div>
           </div>
         </div>
@@ -416,8 +369,8 @@ export default function TournamentEdit() {
   )
 }
 
-function CategoryEntries({ tournamentId, category, players, teams, onAddRequest, onDeleteEntry }: Readonly<{ tournamentId: string; category: { id: string; name: string; format: 'Singles' | 'Doubles' }; players: Array<{ id: string; name?: string }>; teams: Array<{ id: string; name?: string | null }>; onAddRequest: () => void; onDeleteEntry: (entryId: string) => void }>) {
-  const [entries, setEntries] = useState<Array<{ id: string; playerId?: string; teamId?: string }>>([])
+function CategoryEntries({ tournamentId, category, players, onAddRequest, onDeleteEntry }: Readonly<{ tournamentId: string; category: { id: string; name: string; format: 'Singles' | 'Doubles' }; players: Array<{ id: string; name?: string }>; onAddRequest: () => void; onDeleteEntry: (entryId: string) => void }>) {
+  const [entries, setEntries] = useState<Array<{ id: string; playerId?: string; player1Id?: string; player2Id?: string; teamId?: string }>>([])
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', category.id, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     return () => unsub()
@@ -432,7 +385,11 @@ function CategoryEntries({ tournamentId, category, players, teams, onAddRequest,
         <ul className="mt-2 space-y-1">
           {entries.map(e => (
             <li key={e.id} className="flex justify-between items-center text-sm">
-              <span>{category.format === 'Singles' ? `Player: ${resolveName(players, e.playerId)}` : `Team: ${resolveTeamName(teams, e.teamId)}`}</span>
+              <span>
+                {category.format === 'Singles'
+                  ? `Player: ${resolveName(players, e.playerId)}`
+                  : `Doubles: ${resolveName(players, e.player1Id)} & ${resolveName(players, e.player2Id)}`}
+              </span>
               <button className="btn btn-ghost btn-xs" onClick={() => onDeleteEntry(e.id)}>Remove</button>
             </li>
           ))}
@@ -448,11 +405,7 @@ function resolveName(players: Array<{ id: string; name?: string }>, id?: string)
   return p?.name || id
 }
 
-function resolveTeamName(teams: Array<{ id: string; name?: string | null }>, id?: string) {
-  if (!id) return ''
-  const t = teams.find(t => t.id === id)
-  return t?.name || id
-}
+// team names removed (no teams)
 
 function updateSet(arr: Array<{ a: number; b: number }>, i: number, v: { a: number; b: number }) {
   const copy = [...arr]
