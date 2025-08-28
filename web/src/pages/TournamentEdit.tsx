@@ -259,7 +259,7 @@ export default function TournamentEdit() {
         </ul>
       </div>
       )}
-      {tab === 'players' && (
+  {tab === 'dashboard' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Categories</div>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
