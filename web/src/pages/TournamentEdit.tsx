@@ -10,7 +10,7 @@ import CountryPhoneInput from '../components/CountryPhoneInput'
 type PlayerGender = 'Male' | 'Female' | 'Other'
 type CategoryGender = 'Male' | 'Female' | 'Open'
 type CategoryFormat = 'Singles' | 'Doubles'
-type Player = { id: string; name?: string; phoneNumber?: string; gender?: PlayerGender; dob?: string }
+type Player = { id: string; name?: string; phoneNumber?: string; gender?: PlayerGender; dob?: string; city?: string }
 type Category = { id: string; name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat }
 type Entry = { id: string; playerId?: string; player1Id?: string; player2Id?: string; teamId?: string }
 
@@ -29,6 +29,7 @@ export default function TournamentEdit() {
   const [playerName, setPlayerName] = useState('')
   const [playerDob, setPlayerDob] = useState('')
   const [playerGender, setPlayerGender] = useState<PlayerGender>('Male')
+  const [playerCity, setPlayerCity] = useState('')
   const [catForm, setCatForm] = useState<{ name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat }>({ name: '', gender: 'Open', format: 'Singles' })
   const [editingCategory, setEditingCategory] = useState<null | { categoryId: string; data: { name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat } }>(null)
   const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat }>(null)
@@ -77,8 +78,8 @@ export default function TournamentEdit() {
     try {
       setMsg('')
       const call = httpsCallable(functions, 'addEvent')
-      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddPlayerByPhone, eventPayload: { tournamentId: id, phoneNumber: playerPhone, name: playerName || undefined, dob: playerDob || undefined, gender: playerGender } })
-      setPlayerPhone(''); setPlayerName(''); setPlayerDob('')
+  await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddPlayerByPhone, eventPayload: { tournamentId: id, phoneNumber: playerPhone, name: playerName || undefined, dob: playerDob || undefined, gender: playerGender, city: playerCity || undefined } })
+  setPlayerPhone(''); setPlayerName(''); setPlayerDob(''); setPlayerCity('')
     } catch (e: any) { setMsg(e.message || String(e)) }
   }
 
@@ -156,7 +157,7 @@ export default function TournamentEdit() {
     if (!id) return
     const call = httpsCallable(functions, 'addEvent')
     const tasks = Array.from({ length: n }).map(async () => {
-      const player = { name: randomName(), dob: randomDateOfBirth(), gender: randomGender() as PlayerGender }
+      const player = { name: randomName(), dob: randomDateOfBirth(), gender: randomGender() }
       await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddPlayer, eventPayload: { tournamentId: id, player } })
     })
     await Promise.all(tasks)
@@ -222,7 +223,7 @@ export default function TournamentEdit() {
       {tab === 'players' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Players</div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
           <div className="md:col-span-2">
             <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
           </div>
@@ -235,6 +236,7 @@ export default function TournamentEdit() {
             <option>Female</option>
             <option>Other</option>
           </select>
+          <input className="input input-bordered" placeholder="Town/City (optional)" value={playerCity} onChange={(e) => setPlayerCity(e.target.value)} />
           <button className="btn" onClick={addPlayerByPhone} disabled={!playerName.trim() || !playerDob}>Add player</button>
         </div>
         {isEmulator && (
@@ -246,7 +248,7 @@ export default function TournamentEdit() {
           {players.map(p => (
             <li key={p.id} className="bg-base-200 rounded p-2 text-sm flex justify-between">
               <span>{p.name ?? '(no name)'} • {p.phoneNumber ?? ''}</span>
-              <span className="opacity-60">{p.gender ?? ''} {p.dob ? `• ${p.dob}` : ''}</span>
+              <span className="opacity-60">{p.gender ?? ''} {p.dob ? `• ${p.dob}` : ''} {p?.city ? `• ${p.city}` : ''}</span>
             </li>
           ))}
         </ul>
@@ -366,20 +368,11 @@ export default function TournamentEdit() {
             <h3 className="font-bold text-lg">Add entry to {entryModal.categoryName}</h3>
             <div className="mt-4">
               {entryModal.format === 'Singles' ? (
-                <select className="select select-bordered w-full" value={entrySelected} onChange={(e) => setEntrySelected(e.target.value)}>
-                  <option value="" disabled>Select player</option>
-                  {players.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
-                </select>
+                <PlayerPicker players={players} value={entrySelected} onChange={setEntrySelected} />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <select className="select select-bordered w-full" value={entrySelected} onChange={(e) => setEntrySelected(e.target.value)}>
-                    <option value="" disabled>Select player 1</option>
-                    {players.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
-                  </select>
-                  <select className="select select-bordered w-full" value={entrySelectedP2} onChange={(e) => setEntrySelectedP2(e.target.value)}>
-                    <option value="" disabled>Select player 2</option>
-                    {players.map(p => <option key={p.id} value={p.id} disabled={p.id === entrySelected}>{p.name ?? p.id}</option>)}
-                  </select>
+                  <PlayerPicker players={players} value={entrySelected} onChange={setEntrySelected} label="Select player 1" />
+                  <PlayerPicker players={players} value={entrySelectedP2} onChange={setEntrySelectedP2} label="Select player 2" excludeId={entrySelected} />
                 </div>
               )}
             </div>
@@ -499,5 +492,19 @@ function BracketCard({ tournamentId, bracket, onOpenScore }: Readonly<{ tourname
         </div>
       </div>
     </li>
+  )
+}
+
+function PlayerPicker({ players, value, onChange, label, excludeId }: Readonly<{ players: Array<{ id: string; name?: string }>; value: string; onChange: (v: string) => void; label?: string; excludeId?: string }>) {
+  const [q, setQ] = useState('')
+  const filtered = players.filter(p => (p.name || p.id).toLowerCase().includes(q.toLowerCase()) && (!excludeId || p.id !== excludeId))
+  return (
+    <div className="space-y-2">
+      <input className="input input-bordered w-full" placeholder={label ? `${label} — search by name` : 'Search by name'} value={q} onChange={(e)=>setQ(e.target.value)} />
+      <select className="select select-bordered w-full" value={value} onChange={(e)=>onChange(e.target.value)}>
+        <option value="" disabled>{label || 'Select player'}</option>
+        {filtered.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
+      </select>
+    </div>
   )
 }

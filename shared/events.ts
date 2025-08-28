@@ -78,6 +78,7 @@ export type EventPayloadMap = {
         dob: string // ISO date string
         gender: 'Male' | 'Female' | 'Other'
     phoneNumber?: string | null
+  city?: string | null
       }
     }
     [EventNames.Tournament.AddEntry]: (
@@ -115,6 +116,7 @@ export type EventPayloadMap = {
       name?: string
       dob?: string
       gender?: 'Male' | 'Female' | 'Other'
+  city?: string
     }
     [EventNames.Tournament.CreateBracketFromCategory]: {
       tournamentId: string
