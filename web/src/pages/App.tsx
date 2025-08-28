@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { auth, RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, isEmulator } from '../lib/firebase'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
+import CountryPhoneInput from '../components/CountryPhoneInput'
 
 export default function App() {
   const [phone, setPhone] = useState('')
@@ -67,8 +68,8 @@ export default function App() {
         <h1 className="text-2xl font-bold">Welcome</h1>
         {phase === 'enter-phone' && (
           <>
-            <label className="label" htmlFor="phone">Phone (E.164)</label>
-            <input id="phone" className="input input-bordered w-full" placeholder="+1 555 555 5555" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <label className="label" htmlFor="phone">Phone</label>
+            <CountryPhoneInput value={phone} onChange={setPhone} defaultCountry="IN" />
             <div ref={recaptchaDivRef} />
             <button className="btn btn-primary" onClick={sendCode}>Send code</button>
           </>

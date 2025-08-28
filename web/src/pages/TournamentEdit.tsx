@@ -5,6 +5,7 @@ import { collection, doc, onSnapshot } from 'firebase/firestore'
 import { EventNames, EventTypes } from '../../../shared/events'
 import Header from '../components/Header'
 import { FiUsers, FiGrid, FiSliders, FiChevronLeft } from 'react-icons/fi'
+import CountryPhoneInput from '../components/CountryPhoneInput'
 
 type PlayerGender = 'Male' | 'Female' | 'Other'
 type CategoryGender = 'Male' | 'Female' | 'Open'
@@ -180,12 +181,12 @@ export default function TournamentEdit() {
       {tab === 'dashboard' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Admins & scorers</div>
-        <div className="flex gap-2">
+        <div className="flex flex-col md:flex-row gap-2">
           <select className="select select-bordered" value={role} onChange={(e) => setRole(e.target.value as any)}>
             <option value="admin">Admin</option>
             <option value="scorer">Scorer</option>
           </select>
-          <input className="input input-bordered flex-1" placeholder="Phone (E.164)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <CountryPhoneInput value={phone} onChange={setPhone} />
           <button className="btn" onClick={addRole}>Add</button>
         </div>
         <ul className="space-y-2">
@@ -202,7 +203,7 @@ export default function TournamentEdit() {
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Players</div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-          <input className="input input-bordered" placeholder="Phone (E.164)" value={playerPhone} onChange={(e) => setPlayerPhone(e.target.value)} />
+          <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
           <input className="input input-bordered" placeholder="Name (optional)" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
           <input type="date" className="input input-bordered" value={playerDob} onChange={(e) => setPlayerDob(e.target.value)} />
           <select className="select select-bordered" value={playerGender} onChange={(e) => setPlayerGender(e.target.value as any)}>

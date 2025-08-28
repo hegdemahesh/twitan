@@ -14,6 +14,8 @@ export default function Home() {
   const activeCount = visibleTournaments.filter(t => t.status !== 'archived').length
   
   const nav = useNavigate()
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (u) => {
@@ -50,7 +52,7 @@ export default function Home() {
       const res = await call({
         eventType: EventTypes.Tournament,
         eventName: EventNames.Tournament.CreateBadmintonTournament,
-        eventPayload: { type: 'Badminton', name },
+  eventPayload: { type: 'Badminton', name, startDate: startDate || null, endDate: endDate || null },
       })
       setMsg(`Tournament queued. Event ID: ${(res.data as any).id}`)
     } catch (e: any) {
@@ -90,6 +92,16 @@ export default function Home() {
         )}
         <label className="label" htmlFor="tname">Tournament name</label>
         <input id="tname" className="input input-bordered w-full" placeholder="Summer Open 2025" value={name} onChange={(e) => setName(e.target.value)} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <label className="label" htmlFor="sdate">Start date</label>
+            <input id="sdate" type="date" className="input input-bordered w-full" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="edate">End date</label>
+            <input id="edate" type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+        </div>
   <button className="btn btn-primary gap-2" onClick={createTournament}><FiPlus /> Create a new tournament</button>
         {msg && <p className="text-sm opacity-80">{msg}</p>}
         <div className="divider">Your tournaments</div>

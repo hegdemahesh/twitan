@@ -29,7 +29,9 @@ export type EventPayloadMap = {
   [EventTypes.Tournament]: {
     [EventNames.Tournament.CreateBadmintonTournament]: {
       type: 'Badminton'
-      name: string
+  name: string
+  startDate?: string | null // yyyy-mm-dd
+  endDate?: string | null   // yyyy-mm-dd
     }
     [EventNames.Tournament.DeleteTournament]: {
       tournamentId: string
