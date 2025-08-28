@@ -1,5 +1,6 @@
 export const EventTypes = {
   Tournament: 'tournament',
+  User: 'user',
 } as const
 
 export const EventNames = {
@@ -19,10 +20,15 @@ export const EventNames = {
   CreateBracketFromCategory: 'createBracketFromCategory',
   UpdateMatchScore: 'updateMatchScore',
   },
+  User: {
+    UpdateProfile: 'updateProfile',
+    UpdateProfilePhoto: 'updateProfilePhoto',
+  },
 } as const
 
 export type EventType = typeof EventTypes[keyof typeof EventTypes]
 export type TournamentEventName = typeof EventNames.Tournament[keyof typeof EventNames.Tournament]
+export type UserEventName = typeof EventNames.User[keyof typeof EventNames.User]
 
 export type EventPayloadMap = {
   [EventTypes.Tournament]: {
@@ -65,12 +71,13 @@ export type EventPayloadMap = {
         format?: 'Singles' | 'Doubles'
       }
     }
-    [EventNames.Tournament.AddPlayer]: {
+  [EventNames.Tournament.AddPlayer]: {
       tournamentId: string
       player: {
         name: string
         dob: string // ISO date string
         gender: 'Male' | 'Female' | 'Other'
+    phoneNumber?: string | null
       }
     }
     [EventNames.Tournament.AddEntry]: (
@@ -122,9 +129,20 @@ export type EventPayloadMap = {
       status: 'in-progress' | 'completed'
     }
   }
+  [EventTypes.User]: {
+    [EventNames.User.UpdateProfile]: {
+      name: string
+      dob: string
+      gender: 'Male' | 'Female' | 'Other'
+      phoneNumber?: string | null
+    }
+    [EventNames.User.UpdateProfilePhoto]: {
+      photoURL: string
+    }
+  }
 }
 
-export interface EventDoc<T extends EventType = EventType, N extends string = TournamentEventName> {
+export interface EventDoc<T extends EventType = EventType, N extends string = TournamentEventName | UserEventName> {
   eventType: T
   eventName: N
   eventPayload: any
@@ -231,4 +249,12 @@ export function isTournamentUpdateMatchScore(e: EventDoc): e is EventDoc<typeof 
     e.eventType === EventTypes.Tournament &&
     e.eventName === EventNames.Tournament.UpdateMatchScore
   )
+}
+
+// User event type guards
+export function isUserUpdateProfile(e: EventDoc): e is EventDoc<typeof EventTypes.User, typeof EventNames.User.UpdateProfile> {
+  return e.eventType === EventTypes.User && e.eventName === EventNames.User.UpdateProfile
+}
+export function isUserUpdateProfilePhoto(e: EventDoc): e is EventDoc<typeof EventTypes.User, typeof EventNames.User.UpdateProfilePhoto> {
+  return e.eventType === EventTypes.User && e.eventName === EventNames.User.UpdateProfilePhoto
 }

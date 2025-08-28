@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { EventDoc, EventNames, EventTypes } from "../../../shared/events";
+import { EventDoc, EventNames, EventTypes, isUserUpdateProfile, isUserUpdateProfilePhoto } from "../../../shared/events";
 import { Handler } from '../handlers/types'
 import { createTournament, deleteTournament } from '../handlers/tournament/lifecycle'
 import { addEventNote } from '../handlers/tournament/notes'
@@ -22,12 +22,8 @@ export const onEventQueued = functions
     }
 
     try {
-      if (data.eventType !== EventTypes.Tournament) {
-        await snap.ref.update({ status: 'ignored', processedAt: FieldValue.serverTimestamp(), reason: 'Unsupported eventType' })
-        return
-      }
-
-      const registry: Record<string, Handler | undefined> = {
+      if (data.eventType === EventTypes.Tournament) {
+        const registry: Record<string, Handler | undefined> = {
         // Tournament lifecycle
         [EventNames.Tournament.CreateBadmintonTournament]: createTournament,
         [EventNames.Tournament.DeleteTournament]: deleteTournament,
@@ -48,14 +44,31 @@ export const onEventQueued = functions
   // Brackets & scoring
   [EventNames.Tournament.CreateBracketFromCategory]: createBracketFromCategory,
   [EventNames.Tournament.UpdateMatchScore]: updateMatchScore,
-      }
-
-      const handler = registry[data.eventName]
-      if (handler) {
-        await handler({ db, snap, data })
+        }
+        const handler = registry[data.eventName]
+        if (handler) { await handler({ db, snap, data }); return }
+        await snap.ref.update({ status: 'ignored', processedAt: FieldValue.serverTimestamp(), reason: 'Unknown event' })
         return
       }
-      await snap.ref.update({ status: 'ignored', processedAt: FieldValue.serverTimestamp(), reason: 'Unknown event' })
+
+      // Basic user profile events: write to users/{uid}
+      if (data.eventType === EventTypes.User && data.callerUid) {
+        const usersCol = db.collection('users')
+        if (isUserUpdateProfile(data)) {
+          const { name, dob, gender, phoneNumber } = data.eventPayload
+          await usersCol.doc(data.callerUid).set({ name, dob, gender, phoneNumber: phoneNumber ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+          await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp() })
+          return
+        }
+        if (isUserUpdateProfilePhoto(data)) {
+          const { photoURL } = data.eventPayload
+          await usersCol.doc(data.callerUid).set({ photoURL, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+          await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp() })
+          return
+        }
+      }
+
+      await snap.ref.update({ status: 'ignored', processedAt: FieldValue.serverTimestamp(), reason: 'Unsupported eventType' })
       return
     } catch (err: any) {
       await snap.ref.update({ status: 'error', processedAt: FieldValue.serverTimestamp(), error: err?.message ?? String(err) })

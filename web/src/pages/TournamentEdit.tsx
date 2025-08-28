@@ -188,14 +188,14 @@ export default function TournamentEdit() {
         <div className="font-medium">Players</div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
           <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
-          <input className="input input-bordered" placeholder="Name (optional)" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+          <input className="input input-bordered" placeholder="Name (required)" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
           <input type="date" className="input input-bordered" value={playerDob} onChange={(e) => setPlayerDob(e.target.value)} />
           <select className="select select-bordered" value={playerGender} onChange={(e) => setPlayerGender(e.target.value as any)}>
             <option>Male</option>
             <option>Female</option>
             <option>Other</option>
           </select>
-          <button className="btn" onClick={addPlayerByPhone}>Add player</button>
+          <button className="btn" onClick={addPlayerByPhone} disabled={!playerName.trim() || !playerDob}>Add player</button>
         </div>
         <ul className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
           {players.map(p => (

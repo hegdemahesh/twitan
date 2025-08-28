@@ -2,11 +2,15 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { Handler } from '../types'
 
 export const addPlayer: Handler = async ({ db, snap, data }) => {
-  const payload = data.eventPayload as { tournamentId: string; player: { name: string; dob: string; gender: 'Male' | 'Female' | 'Other' } }
+  const payload = data.eventPayload as { tournamentId: string; player: { name: string; dob: string; gender: 'Male' | 'Female' | 'Other'; phoneNumber?: string | null } }
+  if (!payload.player?.name || !payload.player?.dob || !payload.player?.gender) {
+    throw new Error('Missing required player fields')
+  }
   const ref = await db.collection('tournaments').doc(payload.tournamentId).collection('players').add({
     name: payload.player.name,
     dob: payload.player.dob,
     gender: payload.player.gender,
+    phoneNumber: payload.player.phoneNumber ?? null,
     createdAt: FieldValue.serverTimestamp(),
     createdBy: data.callerUid ?? null,
   })
