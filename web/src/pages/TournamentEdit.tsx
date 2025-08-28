@@ -187,8 +187,12 @@ export default function TournamentEdit() {
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Players</div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-          <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
-          <input className="input input-bordered" placeholder="Name (required)" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+          <div className="md:col-span-2">
+            <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
+          </div>
+          <div className="md:col-span-2">
+            <input className="input input-bordered w-full" placeholder="Name (required)" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+          </div>
           <input type="date" className="input input-bordered" value={playerDob} onChange={(e) => setPlayerDob(e.target.value)} />
           <select className="select select-bordered" value={playerGender} onChange={(e) => setPlayerGender(e.target.value as any)}>
             <option>Male</option>
