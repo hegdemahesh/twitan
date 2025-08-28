@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { auth, httpsCallable, functions, onAuthStateChanged, signOut, isEmulator, db } from '../lib/firebase'
+import { auth, httpsCallable, functions, onAuthStateChanged, isEmulator, db } from '../lib/firebase'
 import { EventTypes, EventNames } from '../../../shared/events'
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
+import Header from '../components/Header'
 
 export default function Home() {
   const [name, setName] = useState('')
@@ -74,11 +75,12 @@ export default function Home() {
   
 
   return (
-    <div className="max-w-xl mx-auto p-4">
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      <main className="max-w-3xl w-full mx-auto p-4 flex-1">
       <div className="card bg-base-100 shadow-md p-6 gap-4">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Home</h2>
-          <button className="btn btn-secondary" onClick={() => signOut(auth)}>Logout</button>
         </div>
         {isEmulator && (
           <div className="alert alert-info">
@@ -109,6 +111,7 @@ export default function Home() {
           </ul>
         )}
       </div>
+      </main>
     </div>
   )
 }

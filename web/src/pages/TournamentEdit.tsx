@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { auth, db, functions, httpsCallable, onAuthStateChanged } from '../lib/firebase'
 import { collection, doc, onSnapshot } from 'firebase/firestore'
 import { EventNames, EventTypes } from '../../../shared/events'
+import Header from '../components/Header'
 
 type PlayerGender = 'Male' | 'Female' | 'Other'
 type CategoryGender = 'Male' | 'Female' | 'Open'
@@ -155,7 +156,9 @@ export default function TournamentEdit() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 space-y-6">
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      <main className="max-w-5xl w-full mx-auto p-4 flex-1 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Tournament dashboard</h2>
         <button className="btn" onClick={() => nav('/home')}>Back</button>
@@ -383,7 +386,7 @@ export default function TournamentEdit() {
         </div>
       )}
 
-      {scoreModal && (
+  {scoreModal && (
         <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg">Score match</h3>
@@ -406,6 +409,7 @@ export default function TournamentEdit() {
           </div>
         </div>
       )}
+      </main>
     </div>
   )
 }

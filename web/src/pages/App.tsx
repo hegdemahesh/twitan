@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { auth, RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, isEmulator } from '../lib/firebase'
 import { useNavigate } from 'react-router-dom'
+import Header from '../components/Header'
 
 export default function App() {
   const [phone, setPhone] = useState('')
@@ -59,9 +60,11 @@ export default function App() {
   }
 
   return (
-    <div className="max-w-xl mx-auto p-4">
+    <div className="min-h-screen flex flex-col">
+      <Header showTagline />
+      <main className="max-w-xl w-full mx-auto p-4 flex-1">
       <div className="card bg-base-100 shadow-md p-6 gap-4">
-        <h1 className="text-2xl font-bold">Twitan</h1>
+        <h1 className="text-2xl font-bold">Welcome</h1>
         {phase === 'enter-phone' && (
           <>
             <label className="label" htmlFor="phone">Phone (E.164)</label>
@@ -79,6 +82,7 @@ export default function App() {
         )}
         {msg && <p className="text-sm opacity-80">{msg}</p>}
       </div>
+      </main>
     </div>
   )
 }
