@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { auth, db, functions, httpsCallable, onAuthStateChanged } from '../lib/firebase'
+import { auth, db, functions, httpsCallable, onAuthStateChanged, isEmulator } from '../lib/firebase'
 import { collection, doc, onSnapshot } from 'firebase/firestore'
 import { EventNames, EventTypes } from '../../../shared/events'
 import Header from '../components/Header'
@@ -141,6 +141,42 @@ export default function TournamentEdit() {
     setScoreModal(null)
   }
 
+  // Dev helpers: random data generators (emulator only)
+  function randInt(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min }
+  function randomDateOfBirth(minYear = 1980, maxYear = 2015) {
+    const y = randInt(minYear, maxYear); const m = randInt(1, 12); const d = randInt(1, 28)
+    return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+  }
+  const FIRST_NAMES = ['Aarav','Vihaan','Aditya','Rohan','Kabir','Arjun','Ishaan','Rahul','Ananya','Diya','Aisha','Saanvi','Anika','Riya','Kavya','Maya']
+  const LAST_NAMES = ['Sharma','Verma','Reddy','Iyer','Patel','Khan','Singh','Gupta','Bose','Shetty','Joshi','Nair','Kulkarni','Shah']
+  function randomName() { return `${FIRST_NAMES[randInt(0,FIRST_NAMES.length-1)]} ${LAST_NAMES[randInt(0,LAST_NAMES.length-1)]}` }
+  function randomGender(): PlayerGender { return (['Male','Female','Other'] as PlayerGender[])[randInt(0,2)] }
+
+  async function addRandomPlayers(n = 10) {
+    if (!id) return
+    const call = httpsCallable(functions, 'addEvent')
+    const tasks = Array.from({ length: n }).map(async () => {
+      const player = { name: randomName(), dob: randomDateOfBirth(), gender: randomGender() as PlayerGender }
+      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddPlayer, eventPayload: { tournamentId: id, player } })
+    })
+    await Promise.all(tasks)
+    setMsg(`Added ${n} random players`)
+  }
+
+  async function addRandomCategories() {
+    if (!id) return
+    const presets: Array<{ name: string; minAge?: number; maxAge?: number; gender: CategoryGender; format: CategoryFormat }> = [
+      { name: 'U13 Singles', minAge: 9, maxAge: 13, gender: 'Open', format: 'Singles' },
+      { name: 'U15 Singles', minAge: 11, maxAge: 15, gender: 'Open', format: 'Singles' },
+      { name: 'Men Singles', gender: 'Male', format: 'Singles' },
+      { name: 'Women Singles', gender: 'Female', format: 'Singles' },
+      { name: 'Open Doubles', gender: 'Open', format: 'Doubles' },
+    ]
+    const call = httpsCallable(functions, 'addEvent')
+    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddTournamentCategories, eventPayload: { tournamentId: id, categories: presets } })
+    setMsg('Added random categories')
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -201,6 +237,11 @@ export default function TournamentEdit() {
           </select>
           <button className="btn" onClick={addPlayerByPhone} disabled={!playerName.trim() || !playerDob}>Add player</button>
         </div>
+        {isEmulator && (
+          <div className="pt-2">
+            <button className="btn btn-sm" onClick={() => addRandomPlayers(10)}>Dev: Add 10 random players</button>
+          </div>
+        )}
         <ul className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
           {players.map(p => (
             <li key={p.id} className="bg-base-200 rounded p-2 text-sm flex justify-between">
@@ -229,6 +270,11 @@ export default function TournamentEdit() {
           </select>
           <button className="btn" onClick={addCategory}>Add category</button>
         </div>
+        {isEmulator && (
+          <div className="pt-2">
+            <button className="btn btn-sm" onClick={addRandomCategories}>Dev: Add random categories</button>
+          </div>
+        )}
         {categories.length === 0 ? (
           <div className="text-sm opacity-60">No categories yet.</div>
         ) : (
