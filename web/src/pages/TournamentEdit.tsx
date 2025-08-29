@@ -4,7 +4,7 @@ import { auth, db, functions, httpsCallable, onAuthStateChanged, isEmulator } fr
 import { collection, doc, onSnapshot } from 'firebase/firestore'
 import { EventNames, EventTypes } from '../../../shared/events'
 import Header from '../components/Header'
-import { FiUsers, FiGrid, FiSliders, FiChevronLeft } from 'react-icons/fi'
+import { FiUsers, FiGrid, FiSliders, FiChevronLeft, FiCheck } from 'react-icons/fi'
 import CountryPhoneInput from '../components/CountryPhoneInput'
 
 type PlayerGender = 'Male' | 'Female' | 'Other'
@@ -356,6 +356,11 @@ export default function TournamentEdit() {
                 bracket={b}
                 players={players}
                 onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })}
+                onDelete={async () => {
+                  if (!confirm('Delete this bracket and all its matches?')) return
+                  const call = httpsCallable(functions, 'addEvent')
+                  await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteBracket, eventPayload: { tournamentId: id, bracketId: b.id } })
+                }}
               />
             ))}
           </ul>
@@ -448,23 +453,7 @@ export default function TournamentEdit() {
         <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg">Score group match</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="label" htmlFor="ga">Player A</label>
-                <input id="ga" type="number" className="input input-bordered w-full" value={groupScoreModal.scoreA} onChange={(e)=> setGroupScoreModal(m => m ? ({ ...m, scoreA: Number(e.target.value||0) }) : m)} />
-              </div>
-              <div>
-                <label className="label" htmlFor="gb">Player B</label>
-                <input id="gb" type="number" className="input input-bordered w-full" value={groupScoreModal.scoreB} onChange={(e)=> setGroupScoreModal(m => m ? ({ ...m, scoreB: Number(e.target.value||0) }) : m)} />
-              </div>
-              <div className="col-span-2">
-                <label className="label" htmlFor="gs">Status</label>
-                <select id="gs" className="select select-bordered w-full" value={groupScoreModal.status} onChange={(e)=> setGroupScoreModal(m => m ? ({ ...m, status: e.target.value as any }) : m)}>
-                  <option value="in-progress">In progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-            </div>
+            <GroupScoringGrid groupScoreModal={groupScoreModal} setGroupScoreModal={setGroupScoreModal} />
             <div className="modal-action">
               <button className="btn" onClick={() => setGroupScoreModal(null)}>Close</button>
               <button className="btn btn-primary" onClick={saveGroupScore}>Save</button>
@@ -521,22 +510,52 @@ function updateSet(arr: Array<{ a: number; b: number }>, i: number, v: { a: numb
   return copy
 }
 
-function BracketCard({ tournamentId, bracket, players, onOpenScore }: Readonly<{ tournamentId: string; bracket: { id: string; name: string; categoryId: string; format: CategoryFormat; status: string }; players: Array<{ id: string; name?: string }>; onOpenScore: (matchId: string, scores: Array<{ a: number; b: number }>, status: 'in-progress'|'completed') => void }>) {
-  const [matches, setMatches] = useState<Array<{ id: string; round: number; order: number; participantA?: any; participantB?: any; scores: Array<{ a: number; b: number }>; status: string }>>([])
+// Shared helper to produce a display label for an entry using available lists
+function labelForEntryWithLists(
+  entries: Array<{ id: string; playerId?: string; player1Id?: string; player2Id?: string }>,
+  players: Array<{ id: string; name?: string }>,
+  entryId?: string
+) {
+  if (!entryId) return '-'
+  const e = entries.find(x => x.id === entryId)
+  if (!e) return entryId
+  if (e.playerId) return resolveName(players, e.playerId)
+  if (e.player1Id || e.player2Id) return `${resolveName(players, e.player1Id)} & ${resolveName(players, e.player2Id)}`
+  return entryId
+}
+
+function BracketCard({ tournamentId, bracket, players, onOpenScore, onDelete }: Readonly<{ tournamentId: string; bracket: { id: string; name: string; categoryId: string; format: CategoryFormat; status: string }; players: Array<{ id: string; name?: string }>; onOpenScore: (matchId: string, scores: Array<{ a: number; b: number }>, status: 'in-progress'|'completed') => void; onDelete: () => void }>) {
+  const [matches, setMatches] = useState<Array<{ id: string; round: number; order: number; participantA?: any; participantB?: any; scores: Array<{ a: number; b: number }>; status: string; nextMatchId?: string | null }>>([])
   const [entries, setEntries] = useState<Array<{ id: string; playerId?: string; player1Id?: string; player2Id?: string }>>([])
+  const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const matchRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
+  const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number }>>([])
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'brackets', bracket.id, 'matches'), (snap) => setMatches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     const unsubEntries = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', bracket.categoryId, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     return () => { unsub(); unsubEntries() }
   }, [tournamentId, bracket.id])
-  function labelForEntry(entryId?: string) {
-    if (!entryId) return '-'
-    const e = entries.find(x => x.id === entryId)
-    if (!e) return entryId
-    if (e.playerId) return resolveName(players, e.playerId)
-    if (e.player1Id || e.player2Id) return `${resolveName(players, e.player1Id)} & ${resolveName(players, e.player2Id)}`
-    return entryId
-  }
+  useEffect(() => {
+    const c = containerRef.current
+    if (!c) return
+    const cRect = c.getBoundingClientRect()
+    const ln: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
+    for (const m of matches) {
+      const fromEl = matchRefs.current[m.id]
+      const nextId = (m as any).nextMatchId as string | undefined
+      if (!fromEl || !nextId) continue
+      const toEl = matchRefs.current[nextId]
+      if (!toEl) continue
+      const a = fromEl.getBoundingClientRect()
+      const b = toEl.getBoundingClientRect()
+      const x1 = a.right - cRect.left
+      const y1 = a.top + a.height / 2 - cRect.top
+      const x2 = b.left - cRect.left
+      const y2 = b.top + b.height / 2 - cRect.top
+      ln.push({ x1, y1, x2, y2 })
+    }
+    setLines(ln)
+  }, [matches])
   const grouped = matches.reduce((acc: Record<number, Array<any>>, m) => {
     const arr = acc[m.round] || []
     arr.push(m)
@@ -546,24 +565,47 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore }: Readonly<{
   const rounds = Object.keys(grouped).map(n => Number(n)).sort((a,b) => a-b)
   return (
     <li className="p-3 rounded bg-base-200">
-  <div className="font-medium mb-2">{bracket.name} <span className="badge ml-2">{bracket.status}</span></div>
+      <div className="font-medium mb-2 flex items-center justify-between">
+        <span>{bracket.name} <span className="badge ml-2">{bracket.status}</span></span>
+        <button className="btn btn-ghost btn-xs" onClick={onDelete}>Delete</button>
+      </div>
       <div className="overflow-x-auto">
-        <div className="flex gap-4">
-          {rounds.map(r => (
-            <div key={r} className="space-y-2 min-w-[220px]">
-              <div className="text-xs opacity-60">Round {r}</div>
-              {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
-                <div key={m.id} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
-                  <div>
-                    <div>A: {labelForEntry(m.participantA?.entryId)}</div>
-                    <div>B: {labelForEntry(m.participantB?.entryId)}</div>
-                    <div className="text-xs opacity-70">{m.scores.map((s:any,i:number)=>`[${s.a}-${s.b}]`).join(' ')}</div>
+        <div ref={containerRef} className="relative w-max">
+          {/* connectors */}
+          <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
+            {lines.map((l) => {
+              const midX = (l.x1 + l.x2) / 2
+              const d = `M ${l.x1} ${l.y1} H ${midX} V ${l.y2} H ${l.x2}`
+              const key = `${l.x1},${l.y1}->${l.x2},${l.y2}`
+              return <path key={key} d={d} stroke="currentColor" className="text-base-300" strokeWidth={2} fill="none" />
+            })}
+          </svg>
+          <div className="flex gap-6">
+            {rounds.map(r => (
+              <div key={r} className="min-w-[240px] flex flex-col justify-center gap-4">
+                <div className="text-xs opacity-60">Round {r}</div>
+                {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
+                  <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
+                    <div>
+                      <div className={`flex items-center gap-1 ${m.winner === 'A' ? 'text-success font-medium' : ''}`}>
+                        <span>A: {labelForEntryWithLists(entries, players, m.participantA?.entryId)}</span>
+                        {m.winner === 'A' && <FiCheck />}
+                      </div>
+                      <div className={`flex items-center gap-1 ${m.winner === 'B' ? 'text-success font-medium' : ''}`}>
+                        <span>B: {labelForEntryWithLists(entries, players, m.participantB?.entryId)}</span>
+                        {m.winner === 'B' && <FiCheck />}
+                      </div>
+                      {((!m.participantA && m.participantB) || (m.participantA && !m.participantB)) && (
+                        <div className="badge badge-ghost badge-sm mt-1">BYE</div>
+                      )}
+                      <div className="text-xs opacity-70">{(m.scores || []).map((s:any)=>`[${s.a}-${s.b}]`).join(' ')}</div>
+                    </div>
+                    <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scores ?? [], m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
                   </div>
-                  <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scores ?? [], m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
-                </div>
-              ))}
-            </div>
-          ))}
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </li>
@@ -649,6 +691,49 @@ function ScoringGrid({ scoreModal, setScoreModal }: Readonly<{ scoreModal: { bra
   )
 }
 
+function GroupScoringGrid({ groupScoreModal, setGroupScoreModal }: Readonly<{ groupScoreModal: { groupId: string; matchId: string; scoreA: number; scoreB: number; status: 'in-progress'|'completed' }; setGroupScoreModal: React.Dispatch<React.SetStateAction<{ groupId: string; matchId: string; scoreA: number; scoreB: number; status: 'in-progress'|'completed' } | null>> }>) {
+  const [local, setLocal] = useState<{ scoreA: number; scoreB: number; status: 'in-progress'|'completed' }>({ scoreA: groupScoreModal.scoreA ?? 0, scoreB: groupScoreModal.scoreB ?? 0, status: groupScoreModal.status })
+  const [timer, setTimer] = useState<any>(null)
+  useEffect(() => { setLocal({ scoreA: groupScoreModal.scoreA ?? 0, scoreB: groupScoreModal.scoreB ?? 0, status: groupScoreModal.status }) }, [groupScoreModal.matchId])
+  function bump(side: 'A'|'B', delta: number) {
+    const nxt = { ...local, [side === 'A' ? 'scoreA' : 'scoreB']: Math.max(0, (side === 'A' ? local.scoreA : local.scoreB) + delta) }
+    setLocal(nxt)
+    if (timer) clearTimeout(timer)
+    setTimer(setTimeout(() => setGroupScoreModal(m => m ? ({ ...m, scoreA: nxt.scoreA, scoreB: nxt.scoreB }) : m), 250))
+  }
+  function setVal(side: 'A'|'B', val: number) {
+    const nxt = { ...local, [side === 'A' ? 'scoreA' : 'scoreB']: Math.max(0, val) }
+    setLocal(nxt)
+    if (timer) clearTimeout(timer)
+    setTimer(setTimeout(() => setGroupScoreModal(m => m ? ({ ...m, scoreA: nxt.scoreA, scoreB: nxt.scoreB }) : m), 300))
+  }
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="grid grid-cols-2 gap-4">
+        {(['A','B'] as const).map(label => (
+          <div key={label} className="p-2 rounded bg-base-100 border border-base-200">
+            <div className="font-medium mb-2">Player {label}</div>
+            <div className="flex items-center gap-2">
+              <span className="w-16 text-xs opacity-60">Score</span>
+              <button className="btn btn-xs" onClick={() => bump(label, -1)}>-</button>
+              <input type="number" className="input input-bordered input-sm w-20" value={label==='A'?local.scoreA:local.scoreB} onChange={(e)=> setVal(label, Number(e.target.value||0))} />
+              <button className="btn btn-xs" onClick={() => bump(label, +1)}>+</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div>
+        <label className="label" htmlFor="gs-status">Status</label>
+        <select id="gs-status" className="select select-bordered w-full" value={groupScoreModal.status} onChange={(e)=> setGroupScoreModal(m => m ? ({ ...m, status: e.target.value as any }) : m)}>
+          <option value="in-progress">In progress</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <div className="text-xs opacity-70">Scores auto-apply; click Save to persist.</div>
+    </div>
+  )
+}
+
 function EffectOnChange<T>({ value, onChange }: Readonly<{ value: T; onChange: (v: T) => void }>) {
   useEffect(() => { onChange(value) }, [value])
   return null
@@ -662,32 +747,88 @@ function GroupCard({ tournamentId, group, players, onOpenScore, onFinalize }: Re
     const unsubEntries = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', group.categoryId, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     return () => { unsub(); unsubEntries() }
   }, [tournamentId, group.id])
-  function labelForEntry(entryId?: string) {
-    if (!entryId) return '-'
-    const e = entries.find(x => x.id === entryId)
-    if (!e) return entryId
-    if (e.playerId) return resolveName(players, e.playerId)
-    if (e.player1Id || e.player2Id) return `${resolveName(players, e.player1Id)} & ${resolveName(players, e.player2Id)}`
-    return entryId
-  }
+  function labelForEntry(entryId?: string) { return labelForEntryWithLists(entries, players, entryId) }
+  // Compute points table: 3/1/0 with goal diff, played
+  const table = (() => {
+    const pts: Record<string, { name: string; pts: number; gd: number; played: number }> = {}
+    for (const m of matches) {
+      const a = m.a?.entryId, b = m.b?.entryId
+      if (!a || !b) continue
+      const sa = Number(m.scoreA || 0), sb = Number(m.scoreB || 0)
+      const aname = labelForEntry(a), bname = labelForEntry(b)
+      pts[a] = pts[a] || { name: aname, pts: 0, gd: 0, played: 0 }
+      pts[b] = pts[b] || { name: bname, pts: 0, gd: 0, played: 0 }
+      pts[a].played++; pts[b].played++;
+      pts[a].gd += (sa - sb); pts[b].gd += (sb - sa)
+      if (sa > sb) pts[a].pts += 3
+      else if (sb > sa) pts[b].pts += 3
+      else { pts[a].pts += 1; pts[b].pts += 1 }
+    }
+    return Object.entries(pts).map(([entryId, r]) => ({ entryId, ...r })).sort((A,B) => {
+      if (B.pts !== A.pts) return B.pts - A.pts
+      if (B.gd !== A.gd) return B.gd - A.gd
+      return B.played - A.played
+    })
+  })()
+
   return (
     <li className="p-3 rounded bg-base-200">
       <div className="flex items-center justify-between">
         <div className="font-medium">{group.name} <span className="badge ml-2">{group.status}</span></div>
-        <button className="btn btn-xs" onClick={onFinalize}>Finalize to bracket</button>
+        <div className="flex gap-2">
+          <button className="btn btn-ghost btn-xs" onClick={async () => {
+            if (!confirm('Delete this round robin group and all its matches?')) return
+            const call = httpsCallable(functions, 'addEvent')
+            await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteRoundRobinGroup, eventPayload: { tournamentId: tournamentId, groupId: group.id } })
+          }}>Delete</button>
+          <button className="btn btn-xs" onClick={onFinalize}>Finalize to bracket</button>
+        </div>
       </div>
       <div className="mt-2 space-y-2">
-        {matches.map(m => (
-          <div key={m.id} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
-            <div>
-              <div>A: {labelForEntry(m.a?.entryId)}</div>
-              <div>B: {labelForEntry(m.b?.entryId)}</div>
-              <div className="text-xs opacity-70">[{m.scoreA}-{m.scoreB}]</div>
+        {matches.map(m => {
+          let winner: 'A'|'B'|null = null
+          const sa = m.scoreA ?? 0
+          const sb = m.scoreB ?? 0
+          if (sa > sb) winner = 'A'
+          else if (sb > sa) winner = 'B'
+          return (
+            <div key={m.id} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
+              <div>
+                <div className={`flex items-center gap-1 ${winner === 'A' ? 'text-success font-medium' : ''}`}>
+                  <span>A: {labelForEntry(m.a?.entryId)}</span>
+                  {winner === 'A' && <FiCheck />}
+                </div>
+                <div className={`flex items-center gap-1 ${winner === 'B' ? 'text-success font-medium' : ''}`}>
+                  <span>B: {labelForEntry(m.b?.entryId)}</span>
+                  {winner === 'B' && <FiCheck />}
+                </div>
+                <div className="text-xs opacity-70">[{m.scoreA}-{m.scoreB}]</div>
+              </div>
+              <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scoreA ?? 0, m.scoreB ?? 0, m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
             </div>
-            <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scoreA ?? 0, m.scoreB ?? 0, m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
-          </div>
-        ))}
+          )
+        })}
       </div>
+      {table.length > 0 && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="table table-zebra table-sm">
+            <thead>
+              <tr><th>#</th><th>Player/Pair</th><th>P</th><th>GD</th><th>Pts</th></tr>
+            </thead>
+            <tbody>
+              {table.map((r, idx) => (
+                <tr key={r.entryId}>
+                  <td>{idx+1}</td>
+                  <td>{r.name}</td>
+                  <td>{r.played}</td>
+                  <td>{r.gd}</td>
+                  <td>{r.pts}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </li>
   )
 }

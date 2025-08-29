@@ -7,8 +7,8 @@ import { addEventNote } from '../handlers/tournament/notes'
 import { addCategories, deleteCategory, updateCategory } from '../handlers/tournament/categories'
 import { addPlayer, addPlayerByPhone, addRoleByPhone, deleteRole } from '../handlers/tournament/people'
 import { addEntry, deleteEntry } from '../handlers/tournament/entries'
-import { createBracketFromCategory, updateMatchScore } from '../handlers/tournament/brackets'
-import { createRoundRobin, updateRoundRobinMatch, finalizeRoundRobinToBracket } from '../handlers/tournament/roundrobin'
+import { createBracketFromCategory, updateMatchScore, deleteBracket } from '../handlers/tournament/brackets'
+import { createRoundRobin, updateRoundRobinMatch, finalizeRoundRobinToBracket, deleteRoundRobinGroup } from '../handlers/tournament/roundrobin'
 
 export const onEventQueued = functions
   .region("us-central1")
@@ -45,10 +45,12 @@ export const onEventQueued = functions
   // Brackets & scoring
   [EventNames.Tournament.CreateBracketFromCategory]: createBracketFromCategory,
   [EventNames.Tournament.UpdateMatchScore]: updateMatchScore,
+  [EventNames.Tournament.DeleteBracket]: deleteBracket,
   // Round robin
   [EventNames.Tournament.CreateRoundRobin]: createRoundRobin,
   [EventNames.Tournament.UpdateRoundRobinMatch]: updateRoundRobinMatch,
   [EventNames.Tournament.FinalizeRoundRobinToBracket]: finalizeRoundRobinToBracket,
+  [EventNames.Tournament.DeleteRoundRobinGroup]: deleteRoundRobinGroup,
         }
         const handler = registry[data.eventName]
         if (handler) { await handler({ db, snap, data }); return }

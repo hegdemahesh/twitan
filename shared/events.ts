@@ -23,6 +23,8 @@ export const EventNames = {
   CreateRoundRobin: 'createRoundRobin',
   UpdateRoundRobinMatch: 'updateRoundRobinMatch',
   FinalizeRoundRobinToBracket: 'finalizeRoundRobinToBracket',
+  DeleteBracket: 'deleteBracket',
+  DeleteRoundRobinGroup: 'deleteRoundRobinGroup',
   },
   User: {
     UpdateProfile: 'updateProfile',
@@ -153,6 +155,14 @@ export type EventPayloadMap = {
       tournamentId: string
       groupId: string
       topN: number // how many to advance to bracket
+    }
+    [EventNames.Tournament.DeleteBracket]: {
+      tournamentId: string
+      bracketId: string
+    }
+    [EventNames.Tournament.DeleteRoundRobinGroup]: {
+      tournamentId: string
+      groupId: string
     }
   }
   [EventTypes.User]: {

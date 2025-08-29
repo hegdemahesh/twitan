@@ -129,3 +129,15 @@ export const finalizeRoundRobinToBracket: Handler = async ({ db, snap, data }) =
   await groupRef.update({ status: 'completed', finalizedAt: FieldValue.serverTimestamp(), bracketId: bracketRef.id })
   await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp(), bracketId: bracketRef.id })
 }
+
+export const deleteRoundRobinGroup: Handler = async ({ db, snap, data }) => {
+  if (!(data.eventType === EventTypes.Tournament && data.eventName === EventNames.Tournament.DeleteRoundRobinGroup)) return
+  const { tournamentId, groupId } = data.eventPayload as { tournamentId: string; groupId: string }
+  const gRef = db.collection('tournaments').doc(tournamentId).collection('groups').doc(groupId)
+  const matchesSnap = await gRef.collection('matches').get()
+  const batch = db.batch()
+  matchesSnap.docs.forEach(d => batch.delete(d.ref))
+  batch.delete(gRef)
+  await batch.commit()
+  await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp() })
+}

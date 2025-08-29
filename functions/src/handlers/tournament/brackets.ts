@@ -138,3 +138,15 @@ export const updateMatchScore: Handler = async ({ db, snap, data }) => {
 
   await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp() })
 }
+
+export const deleteBracket: Handler = async ({ db, snap, data }) => {
+  if (!(data.eventType === 'tournament' && data.eventName === 'deleteBracket')) return
+  const { tournamentId, bracketId } = data.eventPayload as { tournamentId: string; bracketId: string }
+  const bRef = db.collection('tournaments').doc(tournamentId).collection('brackets').doc(bracketId)
+  const matchesSnap = await bRef.collection('matches').get()
+  const batch = db.batch()
+  matchesSnap.docs.forEach(d => batch.delete(d.ref))
+  batch.delete(bRef)
+  await batch.commit()
+  await snap.ref.update({ status: 'processed', processedAt: FieldValue.serverTimestamp() })
+}
