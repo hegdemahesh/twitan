@@ -39,6 +39,10 @@ export default function TournamentEdit() {
   const [brackets, setBrackets] = useState<Array<{ id: string; name: string; categoryId: string; format: CategoryFormat; status: string }>>([])
   const [scoreModal, setScoreModal] = useState<null | { bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' }>(null)
   const [newBracketCategoryId, setNewBracketCategoryId] = useState<string>('')
+  // Round robin (group stage)
+  const [groups, setGroups] = useState<Array<{ id: string; name: string; categoryId: string; status: string }>>([])
+  const [newGroupCategoryId, setNewGroupCategoryId] = useState<string>('')
+  const [groupScoreModal, setGroupScoreModal] = useState<null | { groupId: string; matchId: string; scoreA: number; scoreB: number; status: 'in-progress'|'completed' }>(null)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { if (!u) nav('/') })
@@ -51,8 +55,9 @@ export default function TournamentEdit() {
     const unsubR = onSnapshot(collection(db, 'tournaments', id, 'roles'), (snap) => setRoles(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     const unsubP = onSnapshot(collection(db, 'tournaments', id, 'players'), (snap) => setPlayers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
   const unsubC = onSnapshot(collection(db, 'tournaments', id, 'categories'), (snap) => setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
-  const unsubB = onSnapshot(collection(db, 'tournaments', id, 'brackets'), (snap) => setBrackets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
-  return () => { unsubT(); unsubR(); unsubP(); unsubC(); unsubB() }
+  const unsubB = onSnapshot(collection(db, 'tournaments', id, 'brackets'), (snap) => setBrackets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))));
+  const unsubG = onSnapshot(collection(db, 'tournaments', id, 'groups'), (snap) => setGroups(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))));
+  return () => { unsubT(); unsubR(); unsubP(); unsubC(); unsubB(); unsubG() }
   }, [id])
 
   if (!id) return <div className="p-4">Missing tournament id</div>
@@ -135,10 +140,29 @@ export default function TournamentEdit() {
     setNewBracketCategoryId('')
   }
 
+  // Round robin actions
+  async function createGroup() {
+    if (!newGroupCategoryId) return
+    const call = httpsCallable(functions, 'addEvent')
+    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.CreateRoundRobin, eventPayload: { tournamentId: id, categoryId: newGroupCategoryId } })
+    setNewGroupCategoryId('')
+  }
+  async function saveGroupScore() {
+    if (!groupScoreModal) return
+    const call = httpsCallable(functions, 'addEvent')
+    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateRoundRobinMatch, eventPayload: { tournamentId: id, groupId: groupScoreModal.groupId, matchId: groupScoreModal.matchId, scoreA: groupScoreModal.scoreA, scoreB: groupScoreModal.scoreB, status: groupScoreModal.status } })
+    setGroupScoreModal(null)
+  }
+  async function finalizeGroupToBracket(groupId: string, topN = 4) {
+    const call = httpsCallable(functions, 'addEvent')
+    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.FinalizeRoundRobinToBracket, eventPayload: { tournamentId: id, groupId, topN } })
+  }
+
   async function saveScore() {
     if (!scoreModal) return
     const call = httpsCallable(functions, 'addEvent')
-    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateMatchScore, eventPayload: { tournamentId: id, bracketId: scoreModal.bracketId, matchId: scoreModal.matchId, scores: scoreModal.scores, status: scoreModal.status } })
+  // @ts-ignore winner may be present in modal state
+  await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateMatchScore, eventPayload: { tournamentId: id, bracketId: scoreModal.bracketId, matchId: scoreModal.matchId, scores: scoreModal.scores, status: scoreModal.status, winner: (scoreModal as any).winner ?? undefined } })
     setScoreModal(null)
   }
 
@@ -326,7 +350,31 @@ export default function TournamentEdit() {
         ) : (
           <ul className="space-y-3">
             {brackets.map(b => (
-              <BracketCard key={b.id} tournamentId={id} bracket={b} onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })} />
+              <BracketCard
+                key={b.id}
+                tournamentId={id}
+                bracket={b}
+                players={players}
+                onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })}
+              />
+            ))}
+          </ul>
+        )}
+        <div className="divider" />
+        <div className="font-medium">Round robin groups</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <select className="select select-bordered" value={newGroupCategoryId} onChange={(e) => setNewGroupCategoryId(e.target.value)}>
+            <option value="">Select category</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name} • {c.format}</option>)}
+          </select>
+          <button className="btn" onClick={createGroup} disabled={!newGroupCategoryId}>Create round robin</button>
+        </div>
+        {groups.length === 0 ? (
+          <div className="text-sm opacity-60">No groups yet.</div>
+        ) : (
+          <ul className="space-y-3">
+              {groups.map(g => (
+              <GroupCard key={g.id} tournamentId={id} group={g} players={players} onOpenScore={(matchId: string, scoreA: number, scoreB: number, status: 'in-progress'|'completed') => setGroupScoreModal({ groupId: g.id, matchId, scoreA, scoreB, status })} onFinalize={() => finalizeGroupToBracket(g.id)} />
             ))}
           </ul>
         )}
@@ -388,21 +436,38 @@ export default function TournamentEdit() {
         <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg">Score match</h3>
-            <div className="mt-4 grid grid-cols-3 gap-2 items-end">
-              {[0,1,2].map(i => (
-                <div key={i} className="grid grid-cols-2 gap-2">
-                  <input type="number" className="input input-bordered" placeholder={`Set ${i+1} A`} value={scoreModal.scores[i]?.a ?? ''} onChange={(e) => setScoreModal({ ...scoreModal, scores: updateSet(scoreModal.scores, i, { a: Number(e.target.value || 0), b: scoreModal.scores[i]?.b ?? 0 }) })} />
-                  <input type="number" className="input input-bordered" placeholder={`Set ${i+1} B`} value={scoreModal.scores[i]?.b ?? ''} onChange={(e) => setScoreModal({ ...scoreModal, scores: updateSet(scoreModal.scores, i, { a: scoreModal.scores[i]?.a ?? 0, b: Number(e.target.value || 0) }) })} />
-                </div>
-              ))}
-              <select className="select select-bordered" value={scoreModal.status} onChange={(e) => setScoreModal({ ...scoreModal, status: e.target.value as any })}>
-                <option value="in-progress">In progress</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
+            <ScoringGrid scoreModal={scoreModal} setScoreModal={setScoreModal} />
             <div className="modal-action">
               <button className="btn" onClick={() => setScoreModal(null)}>Close</button>
               <button className="btn btn-primary" onClick={saveScore}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {groupScoreModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Score group match</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label" htmlFor="ga">Player A</label>
+                <input id="ga" type="number" className="input input-bordered w-full" value={groupScoreModal.scoreA} onChange={(e)=> setGroupScoreModal(m => m ? ({ ...m, scoreA: Number(e.target.value||0) }) : m)} />
+              </div>
+              <div>
+                <label className="label" htmlFor="gb">Player B</label>
+                <input id="gb" type="number" className="input input-bordered w-full" value={groupScoreModal.scoreB} onChange={(e)=> setGroupScoreModal(m => m ? ({ ...m, scoreB: Number(e.target.value||0) }) : m)} />
+              </div>
+              <div className="col-span-2">
+                <label className="label" htmlFor="gs">Status</label>
+                <select id="gs" className="select select-bordered w-full" value={groupScoreModal.status} onChange={(e)=> setGroupScoreModal(m => m ? ({ ...m, status: e.target.value as any }) : m)}>
+                  <option value="in-progress">In progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setGroupScoreModal(null)}>Close</button>
+              <button className="btn btn-primary" onClick={saveGroupScore}>Save</button>
             </div>
           </div>
         </div>
@@ -456,12 +521,22 @@ function updateSet(arr: Array<{ a: number; b: number }>, i: number, v: { a: numb
   return copy
 }
 
-function BracketCard({ tournamentId, bracket, onOpenScore }: Readonly<{ tournamentId: string; bracket: { id: string; name: string; categoryId: string; format: CategoryFormat; status: string }; onOpenScore: (matchId: string, scores: Array<{ a: number; b: number }>, status: 'in-progress'|'completed') => void }>) {
+function BracketCard({ tournamentId, bracket, players, onOpenScore }: Readonly<{ tournamentId: string; bracket: { id: string; name: string; categoryId: string; format: CategoryFormat; status: string }; players: Array<{ id: string; name?: string }>; onOpenScore: (matchId: string, scores: Array<{ a: number; b: number }>, status: 'in-progress'|'completed') => void }>) {
   const [matches, setMatches] = useState<Array<{ id: string; round: number; order: number; participantA?: any; participantB?: any; scores: Array<{ a: number; b: number }>; status: string }>>([])
+  const [entries, setEntries] = useState<Array<{ id: string; playerId?: string; player1Id?: string; player2Id?: string }>>([])
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'brackets', bracket.id, 'matches'), (snap) => setMatches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
-    return () => unsub()
+    const unsubEntries = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', bracket.categoryId, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+    return () => { unsub(); unsubEntries() }
   }, [tournamentId, bracket.id])
+  function labelForEntry(entryId?: string) {
+    if (!entryId) return '-'
+    const e = entries.find(x => x.id === entryId)
+    if (!e) return entryId
+    if (e.playerId) return resolveName(players, e.playerId)
+    if (e.player1Id || e.player2Id) return `${resolveName(players, e.player1Id)} & ${resolveName(players, e.player2Id)}`
+    return entryId
+  }
   const grouped = matches.reduce((acc: Record<number, Array<any>>, m) => {
     const arr = acc[m.round] || []
     arr.push(m)
@@ -480,8 +555,8 @@ function BracketCard({ tournamentId, bracket, onOpenScore }: Readonly<{ tourname
               {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
                 <div key={m.id} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
                   <div>
-                    <div>A: {m.participantA?.entryId ?? '-'}</div>
-                    <div>B: {m.participantB?.entryId ?? '-'}</div>
+                    <div>A: {labelForEntry(m.participantA?.entryId)}</div>
+                    <div>B: {labelForEntry(m.participantB?.entryId)}</div>
                     <div className="text-xs opacity-70">{m.scores.map((s:any,i:number)=>`[${s.a}-${s.b}]`).join(' ')}</div>
                   </div>
                   <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scores ?? [], m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
@@ -506,5 +581,113 @@ function PlayerPicker({ players, value, onChange, label, excludeId }: Readonly<{
         {filtered.map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}
       </select>
     </div>
+  )
+}
+
+function ScoringGrid({ scoreModal, setScoreModal }: Readonly<{ scoreModal: { bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' }; setScoreModal: React.Dispatch<React.SetStateAction<{ bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' } | null>> }>) {
+  const [local, setLocal] = useState<{ scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed'; winner?: 'A'|'B'|null }>({ scores: scoreModal.scores ?? [], status: scoreModal.status })
+  const [timer, setTimer] = useState<any>(null)
+  useEffect(() => { setLocal({ scores: scoreModal.scores ?? [], status: scoreModal.status }) }, [scoreModal.matchId])
+  function bump(i: number, side: 'a'|'b', delta: number) {
+    const s = [...(local.scores || [])]
+    s[i] = { a: s[i]?.a ?? 0, b: s[i]?.b ?? 0 }
+    s[i][side] = Math.max(0, (s[i][side] ?? 0) + delta)
+    setLocal({ ...local, scores: s })
+    if (timer) clearTimeout(timer)
+    setTimer(setTimeout(() => setScoreModal(m => m ? ({ ...m, scores: s }) : m), 250))
+  }
+  function setVal(i: number, side: 'a'|'b', val: number) {
+    const s = [...(local.scores || [])]
+    s[i] = { a: s[i]?.a ?? 0, b: s[i]?.b ?? 0 }
+    s[i][side] = Math.max(0, val)
+    setLocal({ ...local, scores: s })
+    if (timer) clearTimeout(timer)
+    setTimer(setTimeout(() => setScoreModal(m => m ? ({ ...m, scores: s }) : m), 300))
+  }
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="grid grid-cols-2 gap-4">
+        {(['A','B'] as const).map((label, colIdx) => (
+          <div key={label} className="p-2 rounded bg-base-100 border border-base-200">
+            <div className="font-medium mb-2">Player {label}</div>
+            <div className="space-y-2">
+              {[0,1,2].map(i => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-10 text-xs opacity-60">Set {i+1}</span>
+                  <button className="btn btn-xs" onClick={() => bump(i, colIdx===0?'a':'b', -1)}>-</button>
+                  <input type="number" className="input input-bordered input-sm w-20" value={local.scores[i]?.[colIdx===0?'a':'b'] ?? 0} onChange={(e)=> setVal(i, colIdx===0?'a':'b', Number(e.target.value||0))} />
+                  <button className="btn btn-xs" onClick={() => bump(i, colIdx===0?'a':'b', +1)}>+</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2 items-end">
+        <div>
+          <label className="label" htmlFor="status">Status</label>
+          <select id="status" className="select select-bordered w-full" value={scoreModal.status} onChange={(e)=> setScoreModal(m => m ? ({ ...m, status: e.target.value as any }) : m)}>
+            <option value="in-progress">In progress</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="winner">Winner (optional)</label>
+          <select id="winner" className="select select-bordered w-full" value={local.winner ?? ''} onChange={(e)=> setLocal({ ...local, winner: (e.target.value === 'A' || e.target.value === 'B') ? e.target.value : null })}>
+            <option value="">Auto</option>
+            <option value="A">Player A</option>
+            <option value="B">Player B</option>
+          </select>
+        </div>
+      </div>
+      <div className="text-xs opacity-70">Scores auto-apply; click Save to persist.</div>
+      {/* push local winner into modal state when saving */}
+      <EffectOnChange value={local.winner} onChange={(w)=> setScoreModal(m => m ? ({ ...m, // @ts-ignore attach winner for payload
+        winner: (w ?? undefined) as any
+      }) : m)} />
+    </div>
+  )
+}
+
+function EffectOnChange<T>({ value, onChange }: Readonly<{ value: T; onChange: (v: T) => void }>) {
+  useEffect(() => { onChange(value) }, [value])
+  return null
+}
+
+function GroupCard({ tournamentId, group, players, onOpenScore, onFinalize }: Readonly<{ tournamentId: string; group: { id: string; name: string; categoryId: string; status: string }; players: Array<{ id: string; name?: string }>; onOpenScore: (matchId: string, scoreA: number, scoreB: number, status: 'in-progress'|'completed') => void; onFinalize: () => void }>) {
+  const [matches, setMatches] = useState<Array<{ id: string; a?: any; b?: any; scoreA: number; scoreB: number; status: string }>>([])
+  const [entries, setEntries] = useState<Array<{ id: string; playerId?: string; player1Id?: string; player2Id?: string }>>([])
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'groups', group.id, 'matches'), (snap) => setMatches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+    const unsubEntries = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', group.categoryId, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
+    return () => { unsub(); unsubEntries() }
+  }, [tournamentId, group.id])
+  function labelForEntry(entryId?: string) {
+    if (!entryId) return '-'
+    const e = entries.find(x => x.id === entryId)
+    if (!e) return entryId
+    if (e.playerId) return resolveName(players, e.playerId)
+    if (e.player1Id || e.player2Id) return `${resolveName(players, e.player1Id)} & ${resolveName(players, e.player2Id)}`
+    return entryId
+  }
+  return (
+    <li className="p-3 rounded bg-base-200">
+      <div className="flex items-center justify-between">
+        <div className="font-medium">{group.name} <span className="badge ml-2">{group.status}</span></div>
+        <button className="btn btn-xs" onClick={onFinalize}>Finalize to bracket</button>
+      </div>
+      <div className="mt-2 space-y-2">
+        {matches.map(m => (
+          <div key={m.id} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
+            <div>
+              <div>A: {labelForEntry(m.a?.entryId)}</div>
+              <div>B: {labelForEntry(m.b?.entryId)}</div>
+              <div className="text-xs opacity-70">[{m.scoreA}-{m.scoreB}]</div>
+            </div>
+            <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scoreA ?? 0, m.scoreB ?? 0, m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
+          </div>
+        ))}
+      </div>
+    </li>
   )
 }

@@ -19,6 +19,10 @@ export const EventNames = {
   AddPlayerByPhone: 'addPlayerByPhone',
   CreateBracketFromCategory: 'createBracketFromCategory',
   UpdateMatchScore: 'updateMatchScore',
+  // Round robin (group stage)
+  CreateRoundRobin: 'createRoundRobin',
+  UpdateRoundRobinMatch: 'updateRoundRobinMatch',
+  FinalizeRoundRobinToBracket: 'finalizeRoundRobinToBracket',
   },
   User: {
     UpdateProfile: 'updateProfile',
@@ -129,6 +133,26 @@ export type EventPayloadMap = {
       matchId: string
       scores: Array<{ a: number; b: number }>
       status: 'in-progress' | 'completed'
+  winner?: 'A' | 'B' | null
+    }
+    // Round robin payloads
+    [EventNames.Tournament.CreateRoundRobin]: {
+      tournamentId: string
+      categoryId: string
+      groupName?: string
+    }
+    [EventNames.Tournament.UpdateRoundRobinMatch]: {
+      tournamentId: string
+      groupId: string
+      matchId: string
+      scoreA: number
+      scoreB: number
+      status: 'in-progress' | 'completed'
+    }
+    [EventNames.Tournament.FinalizeRoundRobinToBracket]: {
+      tournamentId: string
+      groupId: string
+      topN: number // how many to advance to bracket
     }
   }
   [EventTypes.User]: {

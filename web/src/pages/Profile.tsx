@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Header from '../components/Header'
-import { auth, db, functions, httpsCallable } from '../lib/firebase'
+import { auth, db, functions, httpsCallable, storage } from '../lib/firebase'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { doc, getDoc } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 import { useNavigate } from 'react-router-dom'
@@ -89,12 +90,14 @@ function PhotoUpload({ onUploaded }: Readonly<{ onUploaded: (url: string) => voi
     if (!file) return
     setUploading(true)
     try {
-      // Minimal anonymous upload via Firebase Storage public bucket path
-      // For now, we use Firestore users doc to store URL; assume upload served via hosting or external service.
-      // Placeholder: convert to data URL for quick demo
-      const reader = new FileReader()
-      reader.onload = () => { onUploaded(String(reader.result)); setUploading(false) }
-      reader.readAsDataURL(file)
+  const u = auth.currentUser
+  if (!u) throw new Error('Not signed in')
+  const path = `users/${u.uid}/photos/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g,'_')}`
+  const r = ref(storage, path)
+  await uploadBytes(r, file, { contentType: file.type })
+  const url = await getDownloadURL(r)
+  onUploaded(url)
+  setUploading(false)
     } catch {
       setUploading(false)
     }

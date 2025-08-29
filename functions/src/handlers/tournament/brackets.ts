@@ -111,7 +111,7 @@ async function advanceWinner(db: Firestore, tournamentId: string, bracketId: str
 
 export const updateMatchScore: Handler = async ({ db, snap, data }) => {
   if (!isTournamentUpdateMatchScore(data)) return
-  const { tournamentId, bracketId, matchId, scores, status } = data.eventPayload
+  const { tournamentId, bracketId, matchId, scores, status, winner: winnerOverride } = data.eventPayload
   const mRef = db.collection('tournaments').doc(tournamentId).collection('brackets').doc(bracketId).collection('matches').doc(matchId)
   const mSnap = await mRef.get()
   if (!mSnap.exists) throw new Error('Match not found')
@@ -125,7 +125,8 @@ export const updateMatchScore: Handler = async ({ db, snap, data }) => {
     }
   }
   let winner: 'A'|'B'|null = null
-  if (status === 'completed') {
+  if (winnerOverride === 'A' || winnerOverride === 'B') winner = winnerOverride
+  else if (status === 'completed') {
     if (aSets > bSets) winner = 'A'
     else if (bSets > aSets) winner = 'B'
   }
