@@ -6,6 +6,21 @@ export default {
   daisyui: {
     themes: [
       {
+        "twitan-light": {
+          "primary": "#10b981",
+          "secondary": "#3b82f6",
+          "accent": "#f59e0b",
+          "neutral": "#111827",
+          "base-100": "#ffffff",
+          "base-200": "#f3f4f6",
+          "base-300": "#e5e7eb",
+          "info": "#0284c7",
+          "success": "#16a34a",
+          "warning": "#d97706",
+          "error": "#dc2626",
+        }
+      },
+      {
         twitan: {
           "primary": "#10b981",         // emerald vibe
           "secondary": "#3b82f6",       // accent blue

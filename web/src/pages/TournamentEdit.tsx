@@ -563,6 +563,15 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onDelete }: 
     return acc
   }, {})
   const rounds = Object.keys(grouped).map(n => Number(n)).sort((a,b) => a-b)
+  function roundLabel(r: number) {
+    const last = rounds[rounds.length - 1]
+    const lastButOne = rounds[rounds.length - 2]
+    const lastButTwo = rounds[rounds.length - 3]
+    if (r === last) return 'Finals'
+    if (r === lastButOne) return 'Semi Finals'
+    if (r === lastButTwo) return 'Quarter Finals'
+    return `Round ${r}`
+  }
   return (
     <li className="p-3 rounded bg-base-200">
       <div className="font-medium mb-2 flex items-center justify-between">
@@ -583,7 +592,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onDelete }: 
           <div className="flex gap-6">
             {rounds.map(r => (
               <div key={r} className="min-w-[240px] flex flex-col justify-center gap-4">
-                <div className="text-xs opacity-60">Round {r}</div>
+                <div className="text-xs opacity-60">{roundLabel(r)}</div>
                 {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
                   <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
                     <div>
