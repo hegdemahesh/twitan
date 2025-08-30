@@ -540,6 +540,11 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const matchRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
   const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number }>>([])
+  const [matchOffsets, setMatchOffsets] = useState<Record<string, number>>({})
+  const measureRaf = React.useRef<number | null>(null)
+  const drawRaf = React.useRef<number | null>(null)
+  const roRef = React.useRef<ResizeObserver | null>(null)
+  const debounceTimer = React.useRef<number | null>(null)
   const [editModal, setEditModal] = useState<null | { matchId: string; a?: string; b?: string; clearScores: boolean }>(null)
   const [manageSeeds, setManageSeeds] = useState<null | { slots: Array<string|''>; }>(null)
   useEffect(() => {
@@ -547,27 +552,85 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
     const unsubEntries = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', bracket.categoryId, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     return () => { unsub(); unsubEntries() }
   }, [tournamentId, bracket.id])
+  // Unified scheduled layout measure + draw to avoid races (shuffle, font load, resize)
   useEffect(() => {
-    const c = containerRef.current
-    if (!c) return
-    const cRect = c.getBoundingClientRect()
-    const ln: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
-    for (const m of matches) {
-      const fromEl = matchRefs.current[m.id]
-      const nextId = (m as any).nextMatchId as string | undefined
-      if (!fromEl || !nextId) continue
-      const toEl = matchRefs.current[nextId]
-      if (!toEl) continue
-      const a = fromEl.getBoundingClientRect()
-      const b = toEl.getBoundingClientRect()
-      const x1 = a.right - cRect.left
-      const y1 = a.top + a.height / 2 - cRect.top
-      const x2 = b.left - cRect.left
-      const y2 = b.top + b.height / 2 - cRect.top
-      ln.push({ x1, y1, x2, y2 })
+    const schedule = () => {
+      if (debounceTimer.current) { clearTimeout(debounceTimer.current); debounceTimer.current = null }
+      debounceTimer.current = window.setTimeout(() => {
+        if (measureRaf.current) cancelAnimationFrame(measureRaf.current)
+        if (drawRaf.current) cancelAnimationFrame(drawRaf.current)
+        measureRaf.current = requestAnimationFrame(() => {
+          measureRaf.current = requestAnimationFrame(() => {
+            const c = containerRef.current
+            if (!c || matches.length === 0) return
+            const cRect = c.getBoundingClientRect()
+            const offsets: Record<string, number> = {}
+            for (const m of matches) {
+              if (!(m as any).round || (m as any).round <= 1) continue
+              const children = matches.filter(x => x.nextMatchId === m.id)
+              if (children.length < 2) continue
+              const childEls = children.map(ch => matchRefs.current[ch.id]).filter(Boolean) as HTMLDivElement[]
+              const parentEl = matchRefs.current[m.id]
+              if (childEls.length < 2 || !parentEl) continue
+              const a = childEls[0].getBoundingClientRect(); const b = childEls[1].getBoundingClientRect()
+              const p = parentEl.getBoundingClientRect()
+              const childCenterY = ((a.top + a.height / 2) + (b.top + b.height / 2)) / 2 - cRect.top
+              const parentCenterY = (p.top + p.height / 2) - cRect.top
+              const delta = childCenterY - parentCenterY
+              if (Math.abs(delta) > 0.5) offsets[m.id] = delta
+            }
+            setMatchOffsets(prev => {
+              const changed = Object.keys(offsets).length !== Object.keys(prev).length || Object.entries(offsets).some(([k,v]) => prev[k] !== v)
+              return changed ? offsets : prev
+            })
+            drawRaf.current = requestAnimationFrame(() => {
+              const c2 = containerRef.current
+              if (!c2) return
+              const cRect2 = c2.getBoundingClientRect()
+              const ln: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
+              for (const m of matches) {
+                const fromEl = matchRefs.current[m.id]
+                const nextId = (m as any).nextMatchId as string | undefined
+                if (!fromEl || !nextId) continue
+                const toEl = matchRefs.current[nextId]
+                if (!toEl) continue
+                const a = fromEl.getBoundingClientRect()
+                const b = toEl.getBoundingClientRect()
+                const x1 = a.right - cRect2.left
+                const y1 = (a.top + a.height / 2 - cRect2.top)
+                const x2 = b.left - cRect2.left
+                const y2 = (b.top + b.height / 2 - cRect2.top)
+                ln.push({ x1, y1, x2, y2 })
+              }
+              setLines(ln)
+            })
+          })
+        })
+      }, 30)
     }
-    setLines(ln)
+    schedule()
+    if (containerRef.current && 'ResizeObserver' in window) {
+      roRef.current = new ResizeObserver(() => schedule())
+      roRef.current.observe(containerRef.current)
+    }
+    return () => {
+      if (debounceTimer.current) { clearTimeout(debounceTimer.current); debounceTimer.current = null }
+      if (measureRaf.current) cancelAnimationFrame(measureRaf.current)
+      if (drawRaf.current) cancelAnimationFrame(drawRaf.current)
+      if (roRef.current) roRef.current.disconnect()
+    }
   }, [matches])
+
+  // Reset offsets/lines when the set of matches changes (e.g., after shuffle) so first draw is correct
+  useEffect(() => {
+    const key = matches.map(m => m.id).join(',')
+    // use key only to trigger effect, then reset
+    setMatchOffsets({})
+    setLines([])
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  }, [matches.map(m => m.id).join(',')])
+
+  // Group matches into rounds and helpers for labels
   const grouped = matches.reduce((acc: Record<number, Array<any>>, m) => {
     const arr = acc[m.round] || []
     arr.push(m)
@@ -584,6 +647,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
     if (r === lastButTwo) return 'Quarter Finals'
     return `Round ${r}`
   }
+
   return (
     <li className="p-3 rounded bg-base-200">
       <div className="font-medium mb-2 flex items-center justify-between">
@@ -591,13 +655,9 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
         <div className="flex items-center gap-2">
           <button className="btn btn-ghost btn-xs" onClick={onShuffle} disabled={!!bracket.finalized}>Shuffle</button>
           <button className="btn btn-ghost btn-xs" disabled={!!bracket.finalized} onClick={() => {
-            // Build initial slots from first round
             const fr = [...matches].filter((m:any)=>m.round===1).sort((a:any,b:any)=> (a.order||0)-(b.order||0))
             const init: Array<string|''> = []
-            for (const m of fr) {
-              init.push(m.participantA?.entryId || '')
-              init.push(m.participantB?.entryId || '')
-            }
+            for (const m of fr) { init.push(m.participantA?.entryId || ''); init.push(m.participantB?.entryId || '') }
             setManageSeeds({ slots: init })
           }}>Manage seeding</button>
           {bracket.finalized ? (
@@ -610,8 +670,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
       </div>
       <div className="overflow-x-auto">
         <div ref={containerRef} className="relative w-max">
-          {/* connectors */}
-          <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
+          <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
             {lines.map((l) => {
               const midX = (l.x1 + l.x2) / 2
               const d = `M ${l.x1} ${l.y1} H ${midX} V ${l.y2} H ${l.x2}`
@@ -621,10 +680,10 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
           </svg>
           <div className="flex gap-6">
             {rounds.map(r => (
-              <div key={r} className="min-w-[240px] flex flex-col justify-center gap-4">
-                <div className="text-xs opacity-60">{roundLabel(r)}</div>
+              <div key={r} className="min-w-[240px] flex flex-col justify-center gap-4 relative z-10">
+                <div className="text-xs opacity-60 relative z-10 bg-base-100/80 w-fit px-1 rounded">{roundLabel(r)}</div>
                 {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
-                  <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} className={`p-2 rounded text-sm flex justify-between items-center border ${m.status==='completed' ? 'bg-success/10 border-success/30' : m.status==='in-progress' ? 'bg-warning/10 border-warning/30' : 'bg-base-100 border-base-200'}`}>
+                  <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} style={{ transform: `translateY(${(matchOffsets[m.id]||0)}px)`, willChange: 'transform' }} className={`relative z-10 p-2 rounded text-sm flex justify-between items-center border ${m.status==='completed' ? 'bg-success/10 border-success/30' : m.status==='in-progress' ? 'bg-warning/10 border-warning/30' : 'bg-base-100 border-base-200'}`}>
                     <div>
                       <div className={`flex items-center gap-1 ${m.winner === 'A' ? 'text-success font-medium' : ''}`}>
                         <span>A: {labelForEntryWithLists(entries, players, m.participantA?.entryId)}</span>
@@ -670,13 +729,8 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
               <button className="btn" onClick={() => setEditModal(null)}>Close</button>
               <button className="btn btn-primary" disabled={!!bracket.finalized} onClick={async () => {
                 if (!editModal) return
-                // prevent selecting the same entry on both sides
-                if (editModal.a && editModal.b && editModal.a === editModal.b) {
-                  alert('A and B cannot be the same entry.')
-                  return
-                }
+                if (editModal.a && editModal.b && editModal.a === editModal.b) { alert('A and B cannot be the same entry.'); return }
                 const call = httpsCallable(functions, 'addEvent')
-                // If selected entries are already used in another first-round match, clear them there to avoid duplicates
                 const fr = [...matches].filter((m:any)=>m.round===1)
                 const tasks: Promise<any>[] = []
                 for (const m of fr) {
@@ -709,10 +763,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
                   setManageSeeds(state => {
                     if (!state) return state
                     const slots = [...state.slots]
-                    // remove this val from any other slot to keep unique
-                    if (val) {
-                      for (let i=0;i<slots.length;i++) { if (i!==idx && slots[i]===val) slots[i]='' }
-                    }
+                    if (val) { for (let i=0;i<slots.length;i++) { if (i!==idx && slots[i]===val) slots[i]='' } }
                     slots[idx] = val
                     return { slots }
                   })
@@ -728,9 +779,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
                     const used = new Set(state.slots.filter(Boolean))
                     const remaining = allIds.filter(id => !used.has(id))
                     const slots = [...state.slots]
-                    for (let i=0;i<slots.length;i++) {
-                      if (!slots[i] && remaining.length) slots[i] = remaining.shift() as string
-                    }
+                    for (let i=0;i<slots.length;i++) { if (!slots[i] && remaining.length) slots[i] = remaining.shift() as string }
                     return { slots }
                   })
                 }
