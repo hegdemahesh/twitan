@@ -345,52 +345,54 @@ export default function TournamentEdit() {
           </select>
           <button className="btn" onClick={createBracket} disabled={!newBracketCategoryId}>Create bracket</button>
         </div>
-        {brackets.length === 0 ? (
-          <div className="text-sm opacity-60">No brackets yet.</div>
-        ) : (
-          <ul className="space-y-3">
-            {brackets.map(b => (
-        <BracketCard
-                key={b.id}
-                tournamentId={id}
-                bracket={b}
-                players={players}
-                onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })}
-                onShuffle={async () => {
-                  const call = httpsCallable(functions, 'addEvent')
-          await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.ReseedBracket, eventPayload: { tournamentId: id, bracketId: b.id, strategy: 'shuffle' } })
-                }}
-                onFinalizeToggle={async (finalized: boolean) => {
-                  const call = httpsCallable(functions, 'addEvent')
-                  await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.SetBracketFinalized, eventPayload: { tournamentId: id, bracketId: b.id, finalized } })
-                }}
-                onDelete={async () => {
-                  if (!confirm('Delete this bracket and all its matches?')) return
-                  const call = httpsCallable(functions, 'addEvent')
-                  await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteBracket, eventPayload: { tournamentId: id, bracketId: b.id } })
-                }}
-              />
-            ))}
-          </ul>
-        )}
-        <div className="divider" />
-        <div className="font-medium">Round robin groups</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <select className="select select-bordered" value={newGroupCategoryId} onChange={(e) => setNewGroupCategoryId(e.target.value)}>
-            <option value="">Select category</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name} • {c.format}</option>)}
-          </select>
-          <button className="btn" onClick={createGroup} disabled={!newGroupCategoryId}>Create round robin</button>
-        </div>
-        {groups.length === 0 ? (
-          <div className="text-sm opacity-60">No groups yet.</div>
-        ) : (
-          <ul className="space-y-3">
+        <div className="mt-2 max-h-[70vh] overflow-auto pr-1 space-y-3">
+          {brackets.length === 0 ? (
+            <div className="text-sm opacity-60">No brackets yet.</div>
+          ) : (
+            <ul className="space-y-3">
+              {brackets.map(b => (
+                <BracketCard
+                  key={b.id}
+                  tournamentId={id}
+                  bracket={b}
+                  players={players}
+                  onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })}
+                  onShuffle={async () => {
+                    const call = httpsCallable(functions, 'addEvent')
+                    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.ReseedBracket, eventPayload: { tournamentId: id, bracketId: b.id, strategy: 'shuffle' } })
+                  }}
+                  onFinalizeToggle={async (finalized: boolean) => {
+                    const call = httpsCallable(functions, 'addEvent')
+                    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.SetBracketFinalized, eventPayload: { tournamentId: id, bracketId: b.id, finalized } })
+                  }}
+                  onDelete={async () => {
+                    if (!confirm('Delete this bracket and all its matches?')) return
+                    const call = httpsCallable(functions, 'addEvent')
+                    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteBracket, eventPayload: { tournamentId: id, bracketId: b.id } })
+                  }}
+                />
+              ))}
+            </ul>
+          )}
+          <div className="divider" />
+          <div className="font-medium">Round robin groups</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <select className="select select-bordered" value={newGroupCategoryId} onChange={(e) => setNewGroupCategoryId(e.target.value)}>
+              <option value="">Select category</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name} • {c.format}</option>)}
+            </select>
+            <button className="btn" onClick={createGroup} disabled={!newGroupCategoryId}>Create round robin</button>
+          </div>
+          {groups.length === 0 ? (
+            <div className="text-sm opacity-60">No groups yet.</div>
+          ) : (
+            <ul className="space-y-3">
               {groups.map(g => (
-              <GroupCard key={g.id} tournamentId={id} group={g} players={players} onOpenScore={(matchId: string, scoreA: number, scoreB: number, status: 'in-progress'|'completed') => setGroupScoreModal({ groupId: g.id, matchId, scoreA, scoreB, status })} onFinalize={() => finalizeGroupToBracket(g.id)} />
-            ))}
-          </ul>
-        )}
+                <GroupCard key={g.id} tournamentId={id} group={g} players={players} onOpenScore={(matchId: string, scoreA: number, scoreB: number, status: 'in-progress'|'completed') => setGroupScoreModal({ groupId: g.id, matchId, scoreA, scoreB, status })} onFinalize={() => finalizeGroupToBracket(g.id)} />
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
       )}
 
@@ -622,7 +624,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
               <div key={r} className="min-w-[240px] flex flex-col justify-center gap-4">
                 <div className="text-xs opacity-60">{roundLabel(r)}</div>
                 {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
-                  <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
+                  <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} className={`p-2 rounded text-sm flex justify-between items-center border ${m.status==='completed' ? 'bg-success/10 border-success/30' : m.status==='in-progress' ? 'bg-warning/10 border-warning/30' : 'bg-base-100 border-base-200'}`}>
                     <div>
                       <div className={`flex items-center gap-1 ${m.winner === 'A' ? 'text-success font-medium' : ''}`}>
                         <span>A: {labelForEntryWithLists(entries, players, m.participantA?.entryId)}</span>
@@ -985,7 +987,7 @@ function GroupCard({ tournamentId, group, players, onOpenScore, onFinalize }: Re
           if (sa > sb) winner = 'A'
           else if (sb > sa) winner = 'B'
           return (
-            <div key={m.id} className="p-2 bg-base-100 rounded text-sm flex justify-between items-center">
+            <div key={m.id} className={`p-2 rounded text-sm flex justify-between items-center border ${m.status==='completed' ? 'bg-success/10 border-success/30' : m.status==='in-progress' ? 'bg-warning/10 border-warning/30' : 'bg-base-100 border-base-200'}`}>
               <div>
                 <div className={`flex items-center gap-1 ${winner === 'A' ? 'text-success font-medium' : ''}`}>
                   <span>A: {labelForEntry(m.a?.entryId)}</span>
