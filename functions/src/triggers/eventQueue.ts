@@ -7,7 +7,7 @@ import { addEventNote } from '../handlers/tournament/notes'
 import { addCategories, deleteCategory, updateCategory } from '../handlers/tournament/categories'
 import { addPlayer, addPlayerByPhone, addRoleByPhone, deleteRole } from '../handlers/tournament/people'
 import { addEntry, deleteEntry } from '../handlers/tournament/entries'
-import { createBracketFromCategory, updateMatchScore, deleteBracket } from '../handlers/tournament/brackets'
+import { createBracketFromCategory, updateMatchScore, deleteBracket, reseedBracket, updateMatchParticipants, setBracketFinalized } from '../handlers/tournament/brackets'
 import { createRoundRobin, updateRoundRobinMatch, finalizeRoundRobinToBracket, deleteRoundRobinGroup } from '../handlers/tournament/roundrobin'
 
 export const onEventQueued = functions
@@ -46,6 +46,9 @@ export const onEventQueued = functions
   [EventNames.Tournament.CreateBracketFromCategory]: createBracketFromCategory,
   [EventNames.Tournament.UpdateMatchScore]: updateMatchScore,
   [EventNames.Tournament.DeleteBracket]: deleteBracket,
+  [EventNames.Tournament.ReseedBracket]: reseedBracket,
+  [EventNames.Tournament.UpdateMatchParticipants]: updateMatchParticipants,
+  [EventNames.Tournament.SetBracketFinalized]: setBracketFinalized,
   // Round robin
   [EventNames.Tournament.CreateRoundRobin]: createRoundRobin,
   [EventNames.Tournament.UpdateRoundRobinMatch]: updateRoundRobinMatch,

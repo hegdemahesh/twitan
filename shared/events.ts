@@ -25,6 +25,10 @@ export const EventNames = {
   FinalizeRoundRobinToBracket: 'finalizeRoundRobinToBracket',
   DeleteBracket: 'deleteBracket',
   DeleteRoundRobinGroup: 'deleteRoundRobinGroup',
+  // Bracket management
+  ReseedBracket: 'reseedBracket',
+  UpdateMatchParticipants: 'updateMatchParticipants',
+  SetBracketFinalized: 'setBracketFinalized',
   },
   User: {
     UpdateProfile: 'updateProfile',
@@ -129,6 +133,13 @@ export type EventPayloadMap = {
       categoryId: string
       bracketName?: string
     }
+    [EventNames.Tournament.ReseedBracket]: {
+      tournamentId: string
+      bracketId: string
+      orderedEntryIds?: string[] // left-to-right A/B pairs by first round order
+      strategy?: 'shuffle' | 'ordered'
+      force?: boolean
+    }
     [EventNames.Tournament.UpdateMatchScore]: {
       tournamentId: string
       bracketId: string
@@ -136,6 +147,20 @@ export type EventPayloadMap = {
       scores: Array<{ a: number; b: number }>
       status: 'in-progress' | 'completed'
   winner?: 'A' | 'B' | null
+    }
+    [EventNames.Tournament.UpdateMatchParticipants]: {
+      tournamentId: string
+      bracketId: string
+      matchId: string
+      participantAEntryId?: string | null
+      participantBEntryId?: string | null
+      clearScores?: boolean
+      force?: boolean
+    }
+    [EventNames.Tournament.SetBracketFinalized]: {
+      tournamentId: string
+      bracketId: string
+      finalized: boolean
     }
     // Round robin payloads
     [EventNames.Tournament.CreateRoundRobin]: {

@@ -356,6 +356,14 @@ export default function TournamentEdit() {
                 bracket={b}
                 players={players}
                 onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })}
+                onShuffle={async () => {
+                  const call = httpsCallable(functions, 'addEvent')
+                  await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.ReseedBracket, eventPayload: { tournamentId: id, bracketId: b.id, strategy: 'shuffle', force: true } })
+                }}
+                onFinalizeToggle={async (finalized: boolean) => {
+                  const call = httpsCallable(functions, 'addEvent')
+                  await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.SetBracketFinalized, eventPayload: { tournamentId: id, bracketId: b.id, finalized } })
+                }}
                 onDelete={async () => {
                   if (!confirm('Delete this bracket and all its matches?')) return
                   const call = httpsCallable(functions, 'addEvent')
@@ -524,7 +532,7 @@ function labelForEntryWithLists(
   return entryId
 }
 
-function BracketCard({ tournamentId, bracket, players, onOpenScore, onDelete }: Readonly<{ tournamentId: string; bracket: { id: string; name: string; categoryId: string; format: CategoryFormat; status: string }; players: Array<{ id: string; name?: string }>; onOpenScore: (matchId: string, scores: Array<{ a: number; b: number }>, status: 'in-progress'|'completed') => void; onDelete: () => void }>) {
+function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, onFinalizeToggle, onDelete }: Readonly<{ tournamentId: string; bracket: { id: string; name: string; categoryId: string; format: CategoryFormat; status: string; finalized?: boolean }; players: Array<{ id: string; name?: string }>; onOpenScore: (matchId: string, scores: Array<{ a: number; b: number }>, status: 'in-progress'|'completed') => void; onShuffle: () => void; onFinalizeToggle: (finalized: boolean) => void; onDelete: () => void }>) {
   const [matches, setMatches] = useState<Array<{ id: string; round: number; order: number; participantA?: any; participantB?: any; scores: Array<{ a: number; b: number }>; status: string; nextMatchId?: string | null }>>([])
   const [entries, setEntries] = useState<Array<{ id: string; playerId?: string; player1Id?: string; player2Id?: string }>>([])
   const containerRef = React.useRef<HTMLDivElement | null>(null)
@@ -575,8 +583,15 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onDelete }: 
   return (
     <li className="p-3 rounded bg-base-200">
       <div className="font-medium mb-2 flex items-center justify-between">
-        <span>{bracket.name} <span className="badge ml-2">{bracket.status}</span></span>
-        <button className="btn btn-ghost btn-xs" onClick={onDelete}>Delete</button>
+        <span>{bracket.name} <span className="badge ml-2">{bracket.status}</span>{bracket.finalized ? <span className="badge badge-outline ml-2">Finalized</span> : null}</span>
+        <div className="flex items-center gap-2">
+          <button className="btn btn-ghost btn-xs" onClick={onShuffle}>Shuffle</button>
+          <label className="label cursor-pointer gap-2">
+            <span className="label-text text-xs">Finalized</span>
+            <input type="checkbox" className="toggle toggle-xs" checked={!!bracket.finalized} onChange={(e)=> onFinalizeToggle(e.target.checked)} />
+          </label>
+          <button className="btn btn-ghost btn-xs" onClick={onDelete}>Delete</button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <div ref={containerRef} className="relative w-max">
@@ -609,7 +624,17 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onDelete }: 
                       )}
                       <div className="text-xs opacity-70">{(m.scores || []).map((s:any)=>`[${s.a}-${s.b}]`).join(' ')}</div>
                     </div>
-                    <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scores ?? [], m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
+                    <div className="flex items-center gap-2">
+                      <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scores ?? [], m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
+                      {m.round === 1 && (
+                        <button className="btn btn-ghost btn-xs" onClick={async () => {
+                          const a = prompt('Set participant A entry ID (leave blank to clear):', m.participantA?.entryId || '') || ''
+                          const b = prompt('Set participant B entry ID (leave blank to clear):', m.participantB?.entryId || '') || ''
+                          const call = httpsCallable(functions, 'addEvent')
+                          await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateMatchParticipants, eventPayload: { tournamentId, bracketId: bracket.id, matchId: m.id, participantAEntryId: a.trim() || null, participantBEntryId: b.trim() || null, clearScores: true, force: true } })
+                        }}>Edit</button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
