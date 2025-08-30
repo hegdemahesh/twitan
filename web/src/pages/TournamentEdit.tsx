@@ -35,7 +35,7 @@ export default function TournamentEdit() {
   const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat }>(null)
   const [entrySelected, setEntrySelected] = useState<string>('')
   const [entrySelectedP2, setEntrySelectedP2] = useState<string>('')
-  const [tab, setTab] = useState<'dashboard'|'players'|'fixtures'>('dashboard')
+  const [tab, setTab] = useState<'manage'|'players'>('manage')
   const [brackets, setBrackets] = useState<Array<{ id: string; name: string; categoryId: string; format: CategoryFormat; status: string }>>([])
   const [scoreModal, setScoreModal] = useState<null | { bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' }>(null)
   const [newBracketCategoryId, setNewBracketCategoryId] = useState<string>('')
@@ -43,6 +43,7 @@ export default function TournamentEdit() {
   const [groups, setGroups] = useState<Array<{ id: string; name: string; categoryId: string; status: string }>>([])
   const [newGroupCategoryId, setNewGroupCategoryId] = useState<string>('')
   const [groupScoreModal, setGroupScoreModal] = useState<null | { groupId: string; matchId: string; scoreA: number; scoreB: number; status: 'in-progress'|'completed' }>(null)
+  const [catExpand, setCatExpand] = useState<Record<string, { entries: boolean; fixtures: boolean }>>({})
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { if (!u) nav('/') })
@@ -218,12 +219,11 @@ export default function TournamentEdit() {
       )}
 
       <div role="tablist" className="tabs tabs-boxed">
-        <button role="tab" className={`tab gap-2 ${tab === 'dashboard' ? 'tab-active' : ''}`} onClick={() => setTab('dashboard')}><FiSliders /> <span className="hidden sm:inline">Dashboard</span></button>
+        <button role="tab" className={`tab gap-2 ${tab === 'manage' ? 'tab-active' : ''}`} onClick={() => setTab('manage')}><FiSliders /> <span className="hidden sm:inline">Manage</span></button>
         <button role="tab" className={`tab gap-2 ${tab === 'players' ? 'tab-active' : ''}`} onClick={() => setTab('players')}><FiUsers /> <span className="hidden sm:inline">Players</span></button>
-        <button role="tab" className={`tab gap-2 ${tab === 'fixtures' ? 'tab-active' : ''}`} onClick={() => setTab('fixtures')}><FiGrid /> <span className="hidden sm:inline">Fixtures</span></button>
       </div>
 
-      {tab === 'dashboard' && (
+  {tab === 'manage' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Admins & scorers</div>
         <div className="flex flex-col md:flex-row gap-2">
@@ -244,7 +244,7 @@ export default function TournamentEdit() {
         </ul>
       </div>
       )}
-      {tab === 'players' && (
+  {tab === 'players' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Players</div>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
@@ -278,7 +278,7 @@ export default function TournamentEdit() {
         </ul>
       </div>
       )}
-  {tab === 'dashboard' && (
+  {tab === 'manage' && (
       <div className="card bg-base-100 shadow p-4 space-y-3">
         <div className="font-medium">Categories</div>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
@@ -321,78 +321,76 @@ export default function TournamentEdit() {
                     <button className="btn btn-xs btn-error" onClick={() => deleteCategory(c.id)}>Delete</button>
                   </div>
                 </div>
-                <CategoryEntries
-                  tournamentId={id}
-                  category={{ id: c.id, name: c.name, format: c.format }}
-                  players={players}
-                  onAddRequest={() => { setEntryModal({ categoryId: c.id, categoryName: c.name, format: c.format }); setEntrySelected('') }}
-                  onDeleteEntry={(entryId) => deleteEntry(c.id, entryId)}
-                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="btn btn-sm" onClick={() => setCatExpand(prev => ({ ...prev, [c.id]: { entries: !prev[c.id]?.entries, fixtures: prev[c.id]?.fixtures ?? false } }))}>
+                    {catExpand[c.id]?.entries ? 'Hide entries' : 'View entries'}
+                  </button>
+                  <button className="btn btn-sm" onClick={() => setCatExpand(prev => ({ ...prev, [c.id]: { entries: prev[c.id]?.entries ?? false, fixtures: !prev[c.id]?.fixtures } }))}>
+                    {catExpand[c.id]?.fixtures ? 'Hide fixtures' : 'View fixtures'}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={async () => {
+                    const call = httpsCallable(functions, 'addEvent')
+                    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.CreateBracketFromCategory, eventPayload: { tournamentId: id, categoryId: c.id } })
+                  }}>Create bracket</button>
+                  <button className="btn btn-ghost btn-sm" onClick={async () => {
+                    const call = httpsCallable(functions, 'addEvent')
+                    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.CreateRoundRobin, eventPayload: { tournamentId: id, categoryId: c.id } })
+                  }}>Create round robin</button>
+                </div>
+                {catExpand[c.id]?.entries && (
+                  <CategoryEntries
+                    tournamentId={id}
+                    category={{ id: c.id, name: c.name, format: c.format }}
+                    players={players}
+                    onAddRequest={() => { setEntryModal({ categoryId: c.id, categoryName: c.name, format: c.format }); setEntrySelected('') }}
+                    onDeleteEntry={(entryId) => deleteEntry(c.id, entryId)}
+                  />
+                )}
+                {catExpand[c.id]?.fixtures && (
+                  <div className="mt-3 space-y-3">
+                    {brackets.filter(b => b.categoryId === c.id).length === 0 ? (
+                      <div className="text-sm opacity-60">No brackets yet.</div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {brackets.filter(b => b.categoryId === c.id).map(b => (
+                          <BracketCard
+                            key={b.id}
+                            tournamentId={id}
+                            bracket={b}
+                            players={players}
+                            onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })}
+                            onShuffle={async () => {
+                              const call = httpsCallable(functions, 'addEvent')
+                              await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.ReseedBracket, eventPayload: { tournamentId: id, bracketId: b.id, strategy: 'shuffle' } })
+                            }}
+                            onFinalizeToggle={async (finalized: boolean) => {
+                              const call = httpsCallable(functions, 'addEvent')
+                              await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.SetBracketFinalized, eventPayload: { tournamentId: id, bracketId: b.id, finalized } })
+                            }}
+                            onDelete={async () => {
+                              if (!confirm('Delete this bracket and all its matches?')) return
+                              const call = httpsCallable(functions, 'addEvent')
+                              await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteBracket, eventPayload: { tournamentId: id, bracketId: b.id } })
+                            }}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                    {groups.filter(g => g.categoryId === c.id).length === 0 ? (
+                      <div className="text-sm opacity-60">No groups yet.</div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {groups.filter(g => g.categoryId === c.id).map(g => (
+                          <GroupCard key={g.id} tournamentId={id} group={g} players={players} onOpenScore={(matchId: string, scoreA: number, scoreB: number, status: 'in-progress'|'completed') => setGroupScoreModal({ groupId: g.id, matchId, scoreA, scoreB, status })} onFinalize={() => finalizeGroupToBracket(g.id)} />
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         )}
-      </div>
-      )}
-
-      {tab === 'fixtures' && (
-      <div className="card bg-base-100 shadow p-4 space-y-3">
-        <div className="font-medium">Fixtures & brackets</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <select className="select select-bordered" value={newBracketCategoryId} onChange={(e) => setNewBracketCategoryId(e.target.value)}>
-            <option value="">Select category</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name} • {c.format}</option>)}
-          </select>
-          <button className="btn" onClick={createBracket} disabled={!newBracketCategoryId}>Create bracket</button>
-        </div>
-        <div className="mt-2 max-h-[70vh] overflow-auto pr-1 space-y-3">
-          {brackets.length === 0 ? (
-            <div className="text-sm opacity-60">No brackets yet.</div>
-          ) : (
-            <ul className="space-y-3">
-              {brackets.map(b => (
-                <BracketCard
-                  key={b.id}
-                  tournamentId={id}
-                  bracket={b}
-                  players={players}
-                  onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })}
-                  onShuffle={async () => {
-                    const call = httpsCallable(functions, 'addEvent')
-                    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.ReseedBracket, eventPayload: { tournamentId: id, bracketId: b.id, strategy: 'shuffle' } })
-                  }}
-                  onFinalizeToggle={async (finalized: boolean) => {
-                    const call = httpsCallable(functions, 'addEvent')
-                    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.SetBracketFinalized, eventPayload: { tournamentId: id, bracketId: b.id, finalized } })
-                  }}
-                  onDelete={async () => {
-                    if (!confirm('Delete this bracket and all its matches?')) return
-                    const call = httpsCallable(functions, 'addEvent')
-                    await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.DeleteBracket, eventPayload: { tournamentId: id, bracketId: b.id } })
-                  }}
-                />
-              ))}
-            </ul>
-          )}
-          <div className="divider" />
-          <div className="font-medium">Round robin groups</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <select className="select select-bordered" value={newGroupCategoryId} onChange={(e) => setNewGroupCategoryId(e.target.value)}>
-              <option value="">Select category</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name} • {c.format}</option>)}
-            </select>
-            <button className="btn" onClick={createGroup} disabled={!newGroupCategoryId}>Create round robin</button>
-          </div>
-          {groups.length === 0 ? (
-            <div className="text-sm opacity-60">No groups yet.</div>
-          ) : (
-            <ul className="space-y-3">
-              {groups.map(g => (
-                <GroupCard key={g.id} tournamentId={id} group={g} players={players} onOpenScore={(matchId: string, scoreA: number, scoreB: number, status: 'in-progress'|'completed') => setGroupScoreModal({ groupId: g.id, matchId, scoreA, scoreB, status })} onFinalize={() => finalizeGroupToBracket(g.id)} />
-              ))}
-            </ul>
-          )}
-        </div>
       </div>
       )}
 
