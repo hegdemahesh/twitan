@@ -350,7 +350,7 @@ export default function TournamentEdit() {
         ) : (
           <ul className="space-y-3">
             {brackets.map(b => (
-              <BracketCard
+        <BracketCard
                 key={b.id}
                 tournamentId={id}
                 bracket={b}
@@ -358,7 +358,7 @@ export default function TournamentEdit() {
                 onOpenScore={(matchId, scores, status) => setScoreModal({ bracketId: b.id, matchId, scores, status })}
                 onShuffle={async () => {
                   const call = httpsCallable(functions, 'addEvent')
-                  await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.ReseedBracket, eventPayload: { tournamentId: id, bracketId: b.id, strategy: 'shuffle', force: true } })
+          await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.ReseedBracket, eventPayload: { tournamentId: id, bracketId: b.id, strategy: 'shuffle' } })
                 }}
                 onFinalizeToggle={async (finalized: boolean) => {
                   const call = httpsCallable(functions, 'addEvent')
@@ -538,6 +538,8 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const matchRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
   const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number }>>([])
+  const [editModal, setEditModal] = useState<null | { matchId: string; a?: string; b?: string; clearScores: boolean }>(null)
+  const [manageSeeds, setManageSeeds] = useState<null | { slots: Array<string|''>; }>(null)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'brackets', bracket.id, 'matches'), (snap) => setMatches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     const unsubEntries = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', bracket.categoryId, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
@@ -585,11 +587,22 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
       <div className="font-medium mb-2 flex items-center justify-between">
         <span>{bracket.name} <span className="badge ml-2">{bracket.status}</span>{bracket.finalized ? <span className="badge badge-outline ml-2">Finalized</span> : null}</span>
         <div className="flex items-center gap-2">
-          <button className="btn btn-ghost btn-xs" onClick={onShuffle}>Shuffle</button>
-          <label className="label cursor-pointer gap-2">
-            <span className="label-text text-xs">Finalized</span>
-            <input type="checkbox" className="toggle toggle-xs" checked={!!bracket.finalized} onChange={(e)=> onFinalizeToggle(e.target.checked)} />
-          </label>
+          <button className="btn btn-ghost btn-xs" onClick={onShuffle} disabled={!!bracket.finalized}>Shuffle</button>
+          <button className="btn btn-ghost btn-xs" disabled={!!bracket.finalized} onClick={() => {
+            // Build initial slots from first round
+            const fr = [...matches].filter((m:any)=>m.round===1).sort((a:any,b:any)=> (a.order||0)-(b.order||0))
+            const init: Array<string|''> = []
+            for (const m of fr) {
+              init.push(m.participantA?.entryId || '')
+              init.push(m.participantB?.entryId || '')
+            }
+            setManageSeeds({ slots: init })
+          }}>Manage seeding</button>
+          {bracket.finalized ? (
+            <button className="btn btn-xs" onClick={() => onFinalizeToggle(false)}>Unlock</button>
+          ) : (
+            <button className="btn btn-xs" onClick={() => onFinalizeToggle(true)}>Lock</button>
+          )}
           <button className="btn btn-ghost btn-xs" onClick={onDelete}>Delete</button>
         </div>
       </div>
@@ -627,12 +640,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
                     <div className="flex items-center gap-2">
                       <button className="btn btn-xs" onClick={() => onOpenScore(m.id, m.scores ?? [], m.status === 'completed' ? 'completed' : 'in-progress')}>Score</button>
                       {m.round === 1 && (
-                        <button className="btn btn-ghost btn-xs" onClick={async () => {
-                          const a = prompt('Set participant A entry ID (leave blank to clear):', m.participantA?.entryId || '') || ''
-                          const b = prompt('Set participant B entry ID (leave blank to clear):', m.participantB?.entryId || '') || ''
-                          const call = httpsCallable(functions, 'addEvent')
-                          await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateMatchParticipants, eventPayload: { tournamentId, bracketId: bracket.id, matchId: m.id, participantAEntryId: a.trim() || null, participantBEntryId: b.trim() || null, clearScores: true, force: true } })
-                        }}>Edit</button>
+                        <button className="btn btn-ghost btn-xs" disabled={!!bracket.finalized} onClick={() => setEditModal({ matchId: m.id, a: m.participantA?.entryId, b: m.participantB?.entryId, clearScores: true })}>Edit</button>
                       )}
                     </div>
                   </div>
@@ -642,9 +650,160 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
           </div>
         </div>
       </div>
+      {editModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Edit participants</h3>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <EntrySelect entries={entries} players={players} value={editModal.a} onChange={(v)=> setEditModal(m => m ? ({ ...m, a: v || undefined }) : m)} label="Participant A" />
+              <EntrySelect entries={entries} players={players} value={editModal.b} onChange={(v)=> setEditModal(m => m ? ({ ...m, b: v || undefined }) : m)} label="Participant B" />
+            </div>
+            <div className="mt-3">
+              <label className="label cursor-pointer gap-2">
+                <span className="label-text">Clear existing scores</span>
+                <input type="checkbox" className="toggle" checked={editModal.clearScores} onChange={(e)=> setEditModal(m => m ? ({ ...m, clearScores: e.target.checked }) : m)} />
+              </label>
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setEditModal(null)}>Close</button>
+              <button className="btn btn-primary" disabled={!!bracket.finalized} onClick={async () => {
+                if (!editModal) return
+                // prevent selecting the same entry on both sides
+                if (editModal.a && editModal.b && editModal.a === editModal.b) {
+                  alert('A and B cannot be the same entry.')
+                  return
+                }
+                const call = httpsCallable(functions, 'addEvent')
+                // If selected entries are already used in another first-round match, clear them there to avoid duplicates
+                const fr = [...matches].filter((m:any)=>m.round===1)
+                const tasks: Promise<any>[] = []
+                for (const m of fr) {
+                  if (m.id === editModal.matchId) continue
+                  const patch: any = { tournamentId, bracketId: bracket.id, matchId: m.id }
+                  let needs = false
+                  if (editModal.a && m.participantA?.entryId === editModal.a) { patch.participantAEntryId = null; needs = true }
+                  if (editModal.a && m.participantB?.entryId === editModal.a) { patch.participantBEntryId = null; needs = true }
+                  if (editModal.b && m.participantA?.entryId === editModal.b) { patch.participantAEntryId = null; needs = true }
+                  if (editModal.b && m.participantB?.entryId === editModal.b) { patch.participantBEntryId = null; needs = true }
+                  if (needs) tasks.push(call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateMatchParticipants, eventPayload: patch }))
+                }
+                if (tasks.length) await Promise.all(tasks)
+                await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.UpdateMatchParticipants, eventPayload: { tournamentId, bracketId: bracket.id, matchId: editModal.matchId, participantAEntryId: editModal.a || null, participantBEntryId: editModal.b || null, clearScores: !!editModal.clearScores } })
+                setEditModal(null)
+              }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {manageSeeds && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-3xl">
+            <h3 className="font-bold text-lg">Manage seeding (first round)</h3>
+            <div className="mt-3 space-y-3">
+              {(() => {
+                const fr = [...matches].filter((m:any)=>m.round===1).sort((a:any,b:any)=> (a.order||0)-(b.order||0))
+                const allIds = entries.map(e=>e.id)
+                function setSlot(idx: number, val: string) {
+                  setManageSeeds(state => {
+                    if (!state) return state
+                    const slots = [...state.slots]
+                    // remove this val from any other slot to keep unique
+                    if (val) {
+                      for (let i=0;i<slots.length;i++) { if (i!==idx && slots[i]===val) slots[i]='' }
+                    }
+                    slots[idx] = val
+                    return { slots }
+                  })
+                }
+                function optionsFor(idx: number) {
+                  const current = manageSeeds?.slots || []
+                  const chosen = new Set(current.filter((v, i) => v && i!==idx))
+                  return allIds.filter(id => !chosen.has(id))
+                }
+                function autoFill() {
+                  setManageSeeds(state => {
+                    if (!state) return state
+                    const used = new Set(state.slots.filter(Boolean))
+                    const remaining = allIds.filter(id => !used.has(id))
+                    const slots = [...state.slots]
+                    for (let i=0;i<slots.length;i++) {
+                      if (!slots[i] && remaining.length) slots[i] = remaining.shift() as string
+                    }
+                    return { slots }
+                  })
+                }
+                return (
+                  <>
+                    <div className="text-xs opacity-70">Select entries for each slot. Duplicate selections are automatically removed from other slots. Use Auto-fill to fill the rest.</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {fr.map((m:any, mi:number) => (
+                        <div key={m.id} className="p-2 rounded bg-base-100 border border-base-200">
+                          <div className="font-medium mb-2">Match {m.order}</div>
+                          <div className="space-y-2">
+                            <div>
+                              <label className="label text-xs">Participant A</label>
+                              <select className="select select-bordered w-full" value={manageSeeds.slots[mi*2]}
+                                onChange={(e)=> setSlot(mi*2, e.target.value)}>
+                                <option value="">— Clear —</option>
+                                {optionsFor(mi*2).map(id => (
+                                  <option key={id} value={id}>{labelForEntryWithLists(entries, players, id)}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="label text-xs">Participant B</label>
+                              <select className="select select-bordered w-full" value={manageSeeds.slots[mi*2+1]}
+                                onChange={(e)=> setSlot(mi*2+1, e.target.value)}>
+                                <option value="">— Clear —</option>
+                                {optionsFor(mi*2+1).map(id => (
+                                  <option key={id} value={id}>{labelForEntryWithLists(entries, players, id)}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="btn btn-sm" type="button" onClick={autoFill}>Auto-fill remaining</button>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setManageSeeds(null)}>Close</button>
+              <button className="btn btn-primary" onClick={async () => {
+                if (!manageSeeds) return
+                const orderedEntryIds = manageSeeds.slots.filter(Boolean)
+                const call = httpsCallable(functions, 'addEvent')
+                await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.ReseedBracket, eventPayload: { tournamentId, bracketId: bracket.id, strategy: 'ordered', orderedEntryIds } })
+                setManageSeeds(null)
+              }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </li>
   )
 }
+
+function EntrySelect({ entries, players, value, onChange, label }: Readonly<{ entries: Array<{ id: string; playerId?: string; player1Id?: string; player2Id?: string }>; players: Array<{ id: string; name?: string }>; value?: string; onChange: (v: string) => void; label: string }>) {
+  const opts = entries
+  return (
+    <div className="space-y-1">
+      <label className="label text-xs">{label}</label>
+      <select className="select select-bordered w-full" value={value ?? ''} onChange={(e)=> onChange(e.target.value)}>
+        <option value="">— Clear —</option>
+        {opts.map(e => (
+          <option key={e.id} value={e.id}>{labelForEntryWithLists(entries, players, e.id)}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+// Inject edit modal within BracketCard rendering (after main return)
 
 function PlayerPicker({ players, value, onChange, label, excludeId }: Readonly<{ players: Array<{ id: string; name?: string }>; value: string; onChange: (v: string) => void; label?: string; excludeId?: string }>) {
   const [q, setQ] = useState('')
