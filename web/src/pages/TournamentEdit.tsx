@@ -550,80 +550,111 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
     const unsubEntries = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', bracket.categoryId, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     return () => { unsub(); unsubEntries() }
   }, [tournamentId, bracket.id])
-  // Unified scheduled layout measure + draw to avoid races (shuffle, font load, resize)
+  // Phase 1: measure vertical offsets (centering) whenever matches change
   useEffect(() => {
-    const schedule = () => {
+    const measureOffsets = () => {
+      const c = containerRef.current
+      if (!c || matches.length === 0) return
+      const cRect = c.getBoundingClientRect()
+      const offsets: Record<string, number> = {}
+      for (const m of matches) {
+        if (!(m as any).round || (m as any).round <= 1) continue
+        const children = matches.filter(x => x.nextMatchId === m.id)
+        if (children.length < 2) continue
+        const childEls = children.map(ch => matchRefs.current[ch.id]).filter(Boolean) as HTMLDivElement[]
+        const parentEl = matchRefs.current[m.id]
+        if (childEls.length < 2 || !parentEl) continue
+        const a = childEls[0].getBoundingClientRect(); const b = childEls[1].getBoundingClientRect()
+        const p = parentEl.getBoundingClientRect()
+        const childCenterY = ((a.top + a.height / 2) + (b.top + b.height / 2)) / 2 - cRect.top
+        const parentCenterY = (p.top + p.height / 2) - cRect.top
+        const delta = childCenterY - parentCenterY
+        if (Math.abs(delta) > 0.5) offsets[m.id] = delta
+      }
+      setMatchOffsets(prev => {
+        const changed = Object.keys(offsets).length !== Object.keys(prev).length || Object.entries(offsets).some(([k,v]) => prev[k] !== v)
+        return changed ? offsets : prev
+      })
+    }
+
+    if (measureRaf.current) cancelAnimationFrame(measureRaf.current)
+    measureRaf.current = requestAnimationFrame(() => measureOffsets())
+
+    return () => { if (measureRaf.current) cancelAnimationFrame(measureRaf.current) }
+  }, [matches])
+
+  // Phase 2: draw connectors after transforms have been applied (depends on matchOffsets)
+  useEffect(() => {
+    const drawLines = () => {
+      const c = containerRef.current
+      if (!c) return
+      const cRect = c.getBoundingClientRect()
+      const ln: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
+      for (const m of matches) {
+        const fromEl = matchRefs.current[m.id]
+        const nextId = (m as any).nextMatchId as string | undefined
+        if (!fromEl || !nextId) continue
+        const toEl = matchRefs.current[nextId]
+        if (!toEl) continue
+        const a = fromEl.getBoundingClientRect()
+        const b = toEl.getBoundingClientRect()
+        const x1 = a.right - cRect.left
+        const y1 = (a.top + a.height / 2 - cRect.top)
+        const x2 = b.left - cRect.left
+        const y2 = (b.top + b.height / 2 - cRect.top)
+        ln.push({ x1, y1, x2, y2 })
+      }
+      setLines(ln)
+    }
+
+    const scheduleDraw = () => {
       if (debounceTimer.current) { clearTimeout(debounceTimer.current); debounceTimer.current = null }
       debounceTimer.current = window.setTimeout(() => {
-        if (measureRaf.current) cancelAnimationFrame(measureRaf.current)
         if (drawRaf.current) cancelAnimationFrame(drawRaf.current)
-        measureRaf.current = requestAnimationFrame(() => {
-          measureRaf.current = requestAnimationFrame(() => {
-            const c = containerRef.current
-            if (!c || matches.length === 0) return
-            const cRect = c.getBoundingClientRect()
-            const offsets: Record<string, number> = {}
-            for (const m of matches) {
-              if (!(m as any).round || (m as any).round <= 1) continue
-              const children = matches.filter(x => x.nextMatchId === m.id)
-              if (children.length < 2) continue
-              const childEls = children.map(ch => matchRefs.current[ch.id]).filter(Boolean) as HTMLDivElement[]
-              const parentEl = matchRefs.current[m.id]
-              if (childEls.length < 2 || !parentEl) continue
-              const a = childEls[0].getBoundingClientRect(); const b = childEls[1].getBoundingClientRect()
-              const p = parentEl.getBoundingClientRect()
-              const childCenterY = ((a.top + a.height / 2) + (b.top + b.height / 2)) / 2 - cRect.top
-              const parentCenterY = (p.top + p.height / 2) - cRect.top
-              const delta = childCenterY - parentCenterY
-              if (Math.abs(delta) > 0.5) offsets[m.id] = delta
-            }
-            setMatchOffsets(prev => {
-              const changed = Object.keys(offsets).length !== Object.keys(prev).length || Object.entries(offsets).some(([k,v]) => prev[k] !== v)
-              return changed ? offsets : prev
-            })
-            drawRaf.current = requestAnimationFrame(() => {
-              const c2 = containerRef.current
-              if (!c2) return
-              const cRect2 = c2.getBoundingClientRect()
-              const ln: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
-              for (const m of matches) {
-                const fromEl = matchRefs.current[m.id]
-                const nextId = (m as any).nextMatchId as string | undefined
-                if (!fromEl || !nextId) continue
-                const toEl = matchRefs.current[nextId]
-                if (!toEl) continue
-                const a = fromEl.getBoundingClientRect()
-                const b = toEl.getBoundingClientRect()
-                const x1 = a.right - cRect2.left
-                const y1 = (a.top + a.height / 2 - cRect2.top)
-                const x2 = b.left - cRect2.left
-                const y2 = (b.top + b.height / 2 - cRect2.top)
-                ln.push({ x1, y1, x2, y2 })
-              }
-              setLines(ln)
-            })
-          })
+        // two RAFs to wait for React commit + CSS transform application
+        drawRaf.current = requestAnimationFrame(() => {
+          drawRaf.current = requestAnimationFrame(() => drawLines())
         })
       }, 30)
     }
-    schedule()
+
+    scheduleDraw()
+
+    // observe size changes
     if (containerRef.current && 'ResizeObserver' in window) {
-      roRef.current = new ResizeObserver(() => schedule())
+      roRef.current = new ResizeObserver(() => scheduleDraw())
       roRef.current.observe(containerRef.current)
     }
+    // redraw on scroll (both the local scroller and window scrolling)
+    const localScrollEl = containerRef.current?.parentElement
+    let ticking = false
+    const onAnyScroll = () => {
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(() => { drawLines(); ticking = false })
+    }
+    localScrollEl?.addEventListener('scroll', onAnyScroll, { passive: true })
+    window.addEventListener('scroll', onAnyScroll, { passive: true })
+
     return () => {
       if (debounceTimer.current) { clearTimeout(debounceTimer.current); debounceTimer.current = null }
-      if (measureRaf.current) cancelAnimationFrame(measureRaf.current)
       if (drawRaf.current) cancelAnimationFrame(drawRaf.current)
       if (roRef.current) roRef.current.disconnect()
+      localScrollEl?.removeEventListener('scroll', onAnyScroll)
+      window.removeEventListener('scroll', onAnyScroll)
     }
-  }, [matches])
+  }, [matches, matchOffsets])
 
-  // Reset offsets/lines when the set of matches changes (e.g., after shuffle) so first draw is correct
+  // Reset offsets/lines when the visible layout of cards can change (participants/scores), e.g., after Shuffle
+  const layoutKey = React.useMemo(() => {
+    return matches
+      .map(m => `${m.id}:${m.participantA?.entryId || ''}|${m.participantB?.entryId || ''}|${(m.scores||[]).map(s=>`${s.a}-${s.b}`).join('_')}`)
+      .join(';')
+  }, [matches])
   useEffect(() => {
     setMatchOffsets({})
     setLines([])
-  }, [matches.map(m => m.id).join(',')])
+  }, [layoutKey])
 
   // Group matches into rounds and helpers for labels
   const grouped = matches.reduce((acc: Record<number, Array<any>>, m) => {
