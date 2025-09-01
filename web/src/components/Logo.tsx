@@ -14,8 +14,8 @@ export default function Logo({ size = 32, withTagline = false }: Readonly<{ size
         <path d="M18 38c6-2 12-12 14-20 4 10 10 18 14 20 2 1 4 1 6 0-6 8-13 12-20 12S24 46 18 38z" fill="#fff" fillOpacity="0.9"/>
         <path d="M24 28h16M20 34h24" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
       </svg>
-      <div className="leading-tight">
-        <div className="text-lg font-extrabold tracking-tight">Twitan</div>
+      <div className="leading-tight select-none">
+        <div className="text-lg md:text-xl font-extrabold tracking-tight bg-gradient-to-r from-secondary to-primary bg-clip-text text-transparent">Twitan</div>
         {withTagline && <div className="text-[11px] md:text-xs opacity-70 -mt-0.5">Rally. Rank. Reign.</div>}
       </div>
     </div>

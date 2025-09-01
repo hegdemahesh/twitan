@@ -4,7 +4,7 @@ import { auth, db, functions, httpsCallable, onAuthStateChanged, isEmulator } fr
 import { collection, doc, onSnapshot } from 'firebase/firestore'
 import { EventNames, EventTypes } from '../../../shared/events'
 import Header from '../components/Header'
-import { FiUsers, FiGrid, FiSliders, FiChevronLeft, FiCheck } from 'react-icons/fi'
+import { FiUsers, FiSliders, FiChevronLeft, FiCheck } from 'react-icons/fi'
 import CountryPhoneInput from '../components/CountryPhoneInput'
 
 type PlayerGender = 'Male' | 'Female' | 'Other'
@@ -207,8 +207,8 @@ export default function TournamentEdit() {
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="max-w-5xl w-full mx-auto p-4 flex-1 space-y-6">
-      <div className="flex items-center justify-between">
-  <h2 className="text-xl font-semibold flex items-center gap-2"><FiSliders /> Tournament dashboard</h2>
+    <div className="flex items-center justify-between">
+  <h2 className="section-title"><FiSliders /> Tournament dashboard</h2>
   <button className="btn btn-ghost gap-2" onClick={() => nav('/home')}><FiChevronLeft /> Back</button>
       </div>
       {tournament && (
@@ -218,14 +218,14 @@ export default function TournamentEdit() {
         </div>
       )}
 
-      <div role="tablist" className="tabs tabs-boxed">
+  <div role="tablist" className="tabs tabs-boxed">
         <button role="tab" className={`tab gap-2 ${tab === 'manage' ? 'tab-active' : ''}`} onClick={() => setTab('manage')}><FiSliders /> <span className="hidden sm:inline">Manage</span></button>
         <button role="tab" className={`tab gap-2 ${tab === 'players' ? 'tab-active' : ''}`} onClick={() => setTab('players')}><FiUsers /> <span className="hidden sm:inline">Players</span></button>
       </div>
 
   {tab === 'manage' && (
-      <div className="card bg-base-100 shadow p-4 space-y-3">
-        <div className="font-medium">Admins & scorers</div>
+      <div className="card bg-base-100 card-glow p-4 space-y-3">
+        <div className="font-medium flex items-center gap-2">Admins & scorers <span className="gradient-label">access</span></div>
         <div className="flex flex-col md:flex-row gap-2">
           <select className="select select-bordered" value={role} onChange={(e) => setRole(e.target.value as any)}>
             <option value="admin">Admin</option>
@@ -245,8 +245,8 @@ export default function TournamentEdit() {
       </div>
       )}
   {tab === 'players' && (
-      <div className="card bg-base-100 shadow p-4 space-y-3">
-        <div className="font-medium">Players</div>
+      <div className="card bg-base-100 card-glow p-4 space-y-3">
+        <div className="font-medium flex items-center gap-2">Players <span className="gradient-label">manage</span></div>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
           <div className="md:col-span-2">
             <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
@@ -279,8 +279,8 @@ export default function TournamentEdit() {
       </div>
       )}
   {tab === 'manage' && (
-      <div className="card bg-base-100 shadow p-4 space-y-3">
-        <div className="font-medium">Categories</div>
+      <div className="card bg-base-100 card-glow p-4 space-y-3">
+        <div className="font-medium flex items-center gap-2">Categories <span className="gradient-label">fixtures</span></div>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
           <input className="input input-bordered" placeholder="Name" value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} />
           <input type="number" className="input input-bordered" placeholder="Min age" value={catForm.minAge ?? ''} onChange={(e) => setCatForm({ ...catForm, minAge: e.target.value ? Number(e.target.value) : null })} />
@@ -306,7 +306,7 @@ export default function TournamentEdit() {
         ) : (
           <ul className="space-y-3">
             {categories.map(c => (
-              <li key={c.id} className="p-3 rounded bg-base-200">
+              <li key={c.id} className="p-3 rounded bg-base-200 soft-ring">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium">{c.name}</div>
@@ -328,11 +328,11 @@ export default function TournamentEdit() {
                   <button className="btn btn-sm" onClick={() => setCatExpand(prev => ({ ...prev, [c.id]: { entries: prev[c.id]?.entries ?? false, fixtures: !prev[c.id]?.fixtures } }))}>
                     {catExpand[c.id]?.fixtures ? 'Hide fixtures' : 'View fixtures'}
                   </button>
-                  <button className="btn btn-ghost btn-sm" onClick={async () => {
+                  <button className="btn btn-primary btn-sm" onClick={async () => {
                     const call = httpsCallable(functions, 'addEvent')
                     await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.CreateBracketFromCategory, eventPayload: { tournamentId: id, categoryId: c.id } })
                   }}>Create bracket</button>
-                  <button className="btn btn-ghost btn-sm" onClick={async () => {
+                  <button className="btn btn-secondary btn-sm" onClick={async () => {
                     const call = httpsCallable(functions, 'addEvent')
                     await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.CreateRoundRobin, eventPayload: { tournamentId: id, categoryId: c.id } })
                   }}>Create round robin</button>
@@ -544,7 +544,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
   const roRef = React.useRef<ResizeObserver | null>(null)
   const debounceTimer = React.useRef<number | null>(null)
   const [editModal, setEditModal] = useState<null | { matchId: string; a?: string; b?: string; clearScores: boolean }>(null)
-  const [manageSeeds, setManageSeeds] = useState<null | { slots: Array<string|''>; }>(null)
+  const [manageSeeds, setManageSeeds] = useState<null | { slots: string[] }>(null)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'brackets', bracket.id, 'matches'), (snap) => setMatches(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
     const unsubEntries = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', bracket.categoryId, 'entries'), (snap) => setEntries(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))))
@@ -621,11 +621,8 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
 
   // Reset offsets/lines when the set of matches changes (e.g., after shuffle) so first draw is correct
   useEffect(() => {
-    const key = matches.map(m => m.id).join(',')
-    // use key only to trigger effect, then reset
     setMatchOffsets({})
     setLines([])
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   }, [matches.map(m => m.id).join(',')])
 
   // Group matches into rounds and helpers for labels
@@ -645,6 +642,11 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
     if (r === lastButTwo) return 'Quarter Finals'
     return `Round ${r}`
   }
+  function matchStatusClass(status: string) {
+    if (status === 'completed') return 'bg-success/15 border-success/40'
+    if (status === 'in-progress') return 'bg-warning/15 border-warning/40'
+    return 'bg-base-100 border-base-300/60'
+  }
 
   return (
     <li className="p-3 rounded bg-base-200">
@@ -654,7 +656,7 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
           <button className="btn btn-ghost btn-xs" onClick={onShuffle} disabled={!!bracket.finalized}>Shuffle</button>
           <button className="btn btn-ghost btn-xs" disabled={!!bracket.finalized} onClick={() => {
             const fr = [...matches].filter((m:any)=>m.round===1).sort((a:any,b:any)=> (a.order||0)-(b.order||0))
-            const init: Array<string|''> = []
+            const init: string[] = []
             for (const m of fr) { init.push(m.participantA?.entryId || ''); init.push(m.participantB?.entryId || '') }
             setManageSeeds({ slots: init })
           }}>Manage seeding</button>
@@ -673,15 +675,15 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
               const midX = (l.x1 + l.x2) / 2
               const d = `M ${l.x1} ${l.y1} H ${midX} V ${l.y2} H ${l.x2}`
               const key = `${l.x1},${l.y1}->${l.x2},${l.y2}`
-              return <path key={key} d={d} stroke="currentColor" className="text-base-300" strokeWidth={2} fill="none" />
+              return <path key={key} d={d} stroke="currentColor" className="text-secondary/60" strokeWidth={3} fill="none" />
             })}
           </svg>
           <div className="flex gap-6">
             {rounds.map(r => (
               <div key={r} className="min-w-[240px] flex flex-col justify-center gap-4 relative z-10">
-                <div className="text-xs opacity-60 relative z-10 bg-base-100/80 w-fit px-1 rounded">{roundLabel(r)}</div>
+                <div className="gradient-label relative z-10">{roundLabel(r)}</div>
                 {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
-                  <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} style={{ transform: `translateY(${(matchOffsets[m.id]||0)}px)`, willChange: 'transform' }} className={`relative z-10 p-2 rounded text-sm flex justify-between items-center border ${m.status==='completed' ? 'bg-success/10 border-success/30' : m.status==='in-progress' ? 'bg-warning/10 border-warning/30' : 'bg-base-100 border-base-200'}`}>
+                  <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} style={{ transform: `translateY(${(matchOffsets[m.id]||0)}px)`, willChange: 'transform' }} className={`relative z-10 p-2 rounded text-sm flex justify-between items-center border soft-ring ${matchStatusClass(m.status)}`}>
                     <div>
                       <div className={`flex items-center gap-1 ${m.winner === 'A' ? 'text-success font-medium' : ''}`}>
                         <span>A: {labelForEntryWithLists(entries, players, m.participantA?.entryId)}</span>
@@ -790,8 +792,8 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
                           <div className="font-medium mb-2">Match {m.order}</div>
                           <div className="space-y-2">
                             <div>
-                              <label className="label text-xs">Participant A</label>
-                              <select className="select select-bordered w-full" value={manageSeeds.slots[mi*2]}
+                              <label className="label text-xs" htmlFor={`seed-a-${mi}`}>Participant A</label>
+                              <select id={`seed-a-${mi}`} className="select select-bordered w-full" value={manageSeeds.slots[mi*2]}
                                 onChange={(e)=> setSlot(mi*2, e.target.value)}>
                                 <option value="">— Clear —</option>
                                 {optionsFor(mi*2).map(id => (
@@ -800,8 +802,8 @@ function BracketCard({ tournamentId, bracket, players, onOpenScore, onShuffle, o
                               </select>
                             </div>
                             <div>
-                              <label className="label text-xs">Participant B</label>
-                              <select className="select select-bordered w-full" value={manageSeeds.slots[mi*2+1]}
+                              <label className="label text-xs" htmlFor={`seed-b-${mi}`}>Participant B</label>
+                              <select id={`seed-b-${mi}`} className="select select-bordered w-full" value={manageSeeds.slots[mi*2+1]}
                                 onChange={(e)=> setSlot(mi*2+1, e.target.value)}>
                                 <option value="">— Clear —</option>
                                 {optionsFor(mi*2+1).map(id => (

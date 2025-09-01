@@ -3,3 +3,21 @@
 @tailwind utilities;
 
 :root { color-scheme: light dark; }
+
+@layer components {
+	.section-title {
+		@apply text-lg md:text-xl font-extrabold tracking-tight flex items-center gap-2;
+	}
+	.gradient-label {
+		@apply text-[11px] md:text-xs font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-primary/90 to-secondary/90 text-white shadow-sm;
+	}
+	.card-glow {
+		box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 0 0 1px rgba(255,255,255,0.04) inset, 0 6px 20px -10px rgba(16,185,129,0.45);
+	}
+	.pill {
+		@apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+	}
+	.soft-ring {
+		@apply ring-1 ring-base-300/70 hover:ring-primary/40 transition;
+	}
+}
