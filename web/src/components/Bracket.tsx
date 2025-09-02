@@ -73,6 +73,8 @@ export function Bracket({
   const cRect = c.getBoundingClientRect()
   
       const offsets: Record<string, number> = {}
+      const parentCenterCache: Record<string, number> = {}
+      const childCentersByParent: Record<string, [number, number] | undefined> = {}
       for (const m of matches) {
         if (!(m as any).round || (m as any).round <= 1) continue
         const children = matches.filter(x => x.nextMatchId === m.id)
@@ -86,6 +88,40 @@ export function Bracket({
         const parentCenterY = (p.top + p.height / 2) - cRect.top
         const delta = childCenterY - parentCenterY
         if (Math.abs(delta) > 0.5) offsets[m.id] = delta
+        parentCenterCache[m.id] = parentCenterY
+        childCentersByParent[m.id] = [
+          (a.top + a.height / 2) - cRect.top,
+          (b.top + b.height / 2) - cRect.top,
+        ]
+      }
+
+      // Round-level centering: center the whole set of matches in round r within the span of their children
+      const roundsSet = new Set(matches.map(m => m.round))
+      for (const r of Array.from(roundsSet).filter(n => n > 1)) {
+        const inRound = matches.filter(m => m.round === r)
+        if (!inRound.length) continue
+        let minChild = Infinity, maxChild = -Infinity
+        let minParentProj = Infinity, maxParentProj = -Infinity
+        for (const m of inRound) {
+          const pair = childCentersByParent[m.id]
+          if (pair) {
+            minChild = Math.min(minChild, pair[0], pair[1])
+            maxChild = Math.max(maxChild, pair[0], pair[1])
+          }
+          const base = parentCenterCache[m.id]
+          if (base == null) continue
+          const proj = base + (offsets[m.id] || 0)
+          minParentProj = Math.min(minParentProj, proj)
+          maxParentProj = Math.max(maxParentProj, proj)
+        }
+        if (isFinite(minChild) && isFinite(maxChild) && isFinite(minParentProj) && isFinite(maxParentProj)) {
+          const targetCenter = (minChild + maxChild) / 2
+          const currentCenter = (minParentProj + maxParentProj) / 2
+          const roundDelta = targetCenter - currentCenter
+          if (Math.abs(roundDelta) > 0.5) {
+            for (const m of inRound) { offsets[m.id] = (offsets[m.id] || 0) + roundDelta }
+          }
+        }
       }
       const prev = matchOffsets
       const changed = Object.keys(offsets).length !== Object.keys(prev).length || Object.entries(offsets).some(([k,v]) => prev[k] !== v)
