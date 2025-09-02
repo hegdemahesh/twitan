@@ -19,7 +19,7 @@ const COUNTRIES: Country[] = [
   { code: 'NZ', dial: '+64', name: 'New Zealand' },
 ]
 
-export default function CountryPhoneInput({ value, onChange, defaultCountry = 'IN', label, placeholder }: Readonly<{ value: string; onChange: (e164: string) => void; defaultCountry?: string; label?: string; placeholder?: string }>) {
+export default function CountryPhoneInput({ value, onChange, defaultCountry = 'IN', label, placeholder, stacked = false }: Readonly<{ value: string; onChange: (e164: string) => void; defaultCountry?: string; label?: string; placeholder?: string; stacked?: boolean }>) {
   const [country, setCountry] = React.useState<string>(defaultCountry)
   const [local, setLocal] = React.useState<string>('')
 
@@ -31,14 +31,18 @@ export default function CountryPhoneInput({ value, onChange, defaultCountry = 'I
 
   const c = COUNTRIES.find(c => c.code === country) || COUNTRIES[0]
   return (
-    <div className="flex gap-2 items-end w-full">
-      {label && <label className="label w-0 sm:w-auto"><span className="label-text">{label}</span></label>}
-      <select className="select select-bordered w-28" value={country} onChange={(e) => setCountry(e.target.value)}>
-        {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.code} {c.dial}</option>)}
-      </select>
-      <div className="flex-1 flex items-center gap-2">
-        <span className="badge badge-ghost hidden sm:inline">{c.dial}</span>
-        <input className="input input-bordered w-full" placeholder={placeholder ?? 'Phone number'} value={local} onChange={(e) => setLocal(e.target.value)} />
+    <div className={stacked ? 'w-full' : 'flex gap-2 items-end w-full'}>
+      {label && (
+        <label className="label"><span className="label-text">{label}</span></label>
+      )}
+      <div className={stacked ? 'flex gap-2 items-center w-full' : 'contents'}>
+        <select className="select select-bordered w-28" value={country} onChange={(e) => setCountry(e.target.value)}>
+          {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.code} {c.dial}</option>)}
+        </select>
+        <div className="flex-1 flex items-center gap-2">
+          <span className="badge badge-ghost hidden sm:inline">{c.dial}</span>
+          <input className="input input-bordered w-full" placeholder={placeholder ?? 'Phone number'} value={local} onChange={(e) => setLocal(e.target.value)} />
+        </div>
       </div>
     </div>
   )

@@ -6,7 +6,7 @@ import { EventNames, EventTypes } from '../../../shared/events'
 import Header from '../components/Header'
 import { Bracket } from '../components/Bracket'
 import { resolveName } from '../utils/entries'
-import { FiUsers, FiSliders, FiChevronLeft } from 'react-icons/fi'
+// icons removed (no back button now)
 import CountryPhoneInput from '../components/CountryPhoneInput'
 import { Group } from '../components/Group'
 
@@ -39,7 +39,7 @@ export default function TournamentEdit() {
   const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat }>(null)
   const [entrySelected, setEntrySelected] = useState<string>('')
   const [entrySelectedP2, setEntrySelectedP2] = useState<string>('')
-  const [tab, setTab] = useState<'manage'>('manage')
+  // Single-page manage view (no tabs)
   const [brackets, setBrackets] = useState<Array<{ id: string; name: string; categoryId: string; format: CategoryFormat; status: string }>>([])
   const [scoreModal, setScoreModal] = useState<null | { bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' }>(null)
   const [newBracketCategoryId, setNewBracketCategoryId] = useState<string>('')
@@ -49,6 +49,8 @@ export default function TournamentEdit() {
   const [groupScoreModal, setGroupScoreModal] = useState<null | { groupId: string; matchId: string; scoreA: number; scoreB: number; status: 'in-progress'|'completed' }>(null)
   const [catExpand, setCatExpand] = useState<Record<string, { entries: boolean; fixtures: boolean }>>({})
   const [showAddPlayer, setShowAddPlayer] = useState(false)
+  const [showPlayersPanel, setShowPlayersPanel] = useState(false)
+  const [showRolesPanel, setShowRolesPanel] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { if (!u) nav('/') })
@@ -211,48 +213,21 @@ export default function TournamentEdit() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="max-w-5xl w-full mx-auto p-4 flex-1 space-y-6">
-    <div className="flex items-center justify-between">
-  <h2 className="section-title"><FiSliders /> Tournament dashboard</h2>
-  <button className="btn btn-ghost gap-2" onClick={() => nav('/home')}><FiChevronLeft /> Back</button>
-      </div>
-      {tournament && (
-        <div className="card bg-base-100 shadow p-4">
-          <div className="font-medium">{tournament.name}</div>
-          <div className="text-sm opacity-70">{tournament.type} • {tournament.status}</div>
-        </div>
-      )}
-
-  <div className="flex items-center justify-between">
-    <div role="tablist" className="tabs tabs-boxed">
-      <button role="tab" className={`tab gap-2 ${tab === 'manage' ? 'tab-active' : ''}`}><FiSliders /> <span className="hidden sm:inline">Manage</span></button>
-    </div>
-    <div className="flex gap-2">
-      <button className="btn btn-sm" onClick={() => setShowAddPlayer(true)}>Add player</button>
-      <button className="btn btn-sm" onClick={() => setShowAddCategory(true)}>Add category</button>
-    </div>
-  </div>
+  <main className="max-w-5xl w-full mx-auto p-4 flex-1 space-y-6">
 
   {/* Admins & Scorers moved to bottom of page as requested */}
-  {/* Players list stays visible under Manage for quick reference */}
-  {tab === 'manage' && (
+  {/* Only Categories remain visible permanently; Players shown via modal */}
       <div className="card bg-base-100 card-glow p-4 space-y-3">
-        <div className="font-medium flex items-center gap-2">Players <span className="gradient-label">manage</span></div>
-        <ul className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-          {players.map(p => (
-            <li key={p.id} className="bg-base-200 rounded p-2 text-sm flex justify-between">
-              <span>{p.name ?? '(no name)'} • {p.phoneNumber ?? ''}</span>
-              <span className="opacity-60">{p.gender ?? ''} {p.dob ? `• ${p.dob}` : ''} {p?.city ? `• ${p.city}` : ''}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      )}
-  {tab === 'manage' && (
-      <div className="card bg-base-100 card-glow p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="font-medium flex items-center gap-2">Categories <span className="gradient-label">fixtures</span></div>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAddCategory(true)}>Add category</button>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <div className="font-medium">{tournament?.name ?? 'Tournament'}</div>
+            {tournament && <div className="text-xs opacity-70">{tournament.type} • {tournament.status}</div>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddCategory(true)}>Add category</button>
+            <button className="btn btn-sm" onClick={() => setShowPlayersPanel(true)}>Players</button>
+            <button className="btn btn-sm" onClick={() => setShowRolesPanel(true)}>Admins & scorers</button>
+          </div>
         </div>
         {isEmulator && (
           <div className="pt-2">
@@ -350,29 +325,40 @@ export default function TournamentEdit() {
           </ul>
         )}
       </div>
-      )}
+
 
       {msg && <p className="text-sm opacity-80">{msg}</p>}
 
       {/* Add Player Modal */}
       {showAddPlayer && (
         <div className="modal modal-open">
-          <div className="modal-box">
+          <div className="modal-box max-w-3xl">
             <h3 className="font-bold text-lg">Add player</h3>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
-              <div className="md:col-span-2">
-                <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
+            <p className="text-xs opacity-70 mt-1">Enter phone and basic details. You can edit more fields later.</p>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-3 items-start">
+              <div className="md:col-span-3">
+                <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} label="Phone" stacked placeholder="9876543210" />
+              </div>
+              <div className="md:col-span-3">
+                <label className="label"><span className="label-text">Name</span></label>
+                <input className="input input-bordered w-full" placeholder="Full name" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
               </div>
               <div className="md:col-span-2">
-                <input className="input input-bordered w-full" placeholder="Name (required)" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+                <label className="label"><span className="label-text">Date of birth</span></label>
+                <input type="date" className="input input-bordered w-full" value={playerDob} onChange={(e) => setPlayerDob(e.target.value)} />
               </div>
-              <input type="date" className="input input-bordered" value={playerDob} onChange={(e) => setPlayerDob(e.target.value)} />
-              <select className="select select-bordered" value={playerGender} onChange={(e) => setPlayerGender(e.target.value as any)}>
-                <option>Male</option>
-                <option>Female</option>
-                <option>Other</option>
-              </select>
-              <input className="input input-bordered" placeholder="Town/City (optional)" value={playerCity} onChange={(e) => setPlayerCity(e.target.value)} />
+              <div className="md:col-span-2">
+                <label className="label"><span className="label-text">Gender</span></label>
+                <select className="select select-bordered w-full" value={playerGender} onChange={(e) => setPlayerGender(e.target.value as any)}>
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="label"><span className="label-text">Town/City</span></label>
+                <input className="input input-bordered w-full" placeholder="Optional" value={playerCity} onChange={(e) => setPlayerCity(e.target.value)} />
+              </div>
             </div>
             <div className="modal-action">
               <button className="btn" onClick={() => setShowAddPlayer(false)}>Close</button>
@@ -441,26 +427,57 @@ export default function TournamentEdit() {
         </div>
       )}
 
-      {/* Admins & Scorers moved to bottom */}
-      <div className="card bg-base-100 card-glow p-4 space-y-3 mt-6">
-        <div className="font-medium flex items-center gap-2">Admins & scorers <span className="gradient-label">access</span></div>
-        <div className="flex flex-col md:flex-row gap-2">
-          <select className="select select-bordered" value={role} onChange={(e) => setRole(e.target.value as any)}>
-            <option value="admin">Admin</option>
-            <option value="scorer">Scorer</option>
-          </select>
-          <CountryPhoneInput value={phone} onChange={setPhone} />
-          <button className="btn" onClick={addRole}>Add</button>
+  {/* Players Panel Modal */}
+      {showPlayersPanel && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-4xl">
+            <h3 className="font-bold text-lg">Players</h3>
+            <div className="mt-2 flex justify-between items-center">
+              <p className="text-sm opacity-70">Add or review players participating in this tournament.</p>
+              <button className="btn btn-sm" onClick={() => { setShowPlayersPanel(false); setShowAddPlayer(true); }}>Add player</button>
+            </div>
+            <ul className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+              {players.map(p => (
+                <li key={p.id} className="bg-base-200 rounded p-2 text-sm flex justify-between">
+                  <span>{p.name ?? '(no name)'} • {p.phoneNumber ?? ''}</span>
+                  <span className="opacity-60">{p.gender ?? ''} {p.dob ? `• ${p.dob}` : ''} {p?.city ? `• ${p.city}` : ''}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setShowPlayersPanel(false)}>Close</button>
+            </div>
+          </div>
         </div>
-        <ul className="space-y-2">
-          {roles.map(r => (
-            <li key={r.id} className="flex justify-between bg-base-200 p-2 rounded">
-              <span className="text-sm">{r.role} • {r.phoneNumber}</span>
-              <button className="btn btn-xs" onClick={() => delRole(r.id)}>Remove</button>
-            </li>
-          ))}
-        </ul>
-      </div>
+      )}
+
+      {/* Admins & Scorers Modal */}
+      {showRolesPanel && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-2xl">
+            <h3 className="font-bold text-lg">Admins & scorers</h3>
+            <div className="mt-4 flex flex-col md:flex-row gap-2">
+              <select className="select select-bordered" value={role} onChange={(e) => setRole(e.target.value as any)}>
+                <option value="admin">Admin</option>
+                <option value="scorer">Scorer</option>
+              </select>
+              <CountryPhoneInput value={phone} onChange={setPhone} />
+              <button className="btn" onClick={addRole}>Add</button>
+            </div>
+            <ul className="mt-3 space-y-2">
+              {roles.map(r => (
+                <li key={r.id} className="flex justify-between bg-base-200 p-2 rounded">
+                  <span className="text-sm">{r.role} • {r.phoneNumber}</span>
+                  <button className="btn btn-xs" onClick={() => delRole(r.id)}>Remove</button>
+                </li>
+              ))}
+            </ul>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setShowRolesPanel(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {entryModal && (
         <div className="modal modal-open">
