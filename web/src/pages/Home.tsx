@@ -16,6 +16,7 @@ export default function Home() {
   const nav = useNavigate()
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (u) => {
@@ -90,19 +91,7 @@ export default function Home() {
             <span>Using Firebase Emulators</span>
           </div>
         )}
-        <label className="label" htmlFor="tname">Tournament name</label>
-        <input id="tname" className="input input-bordered w-full" placeholder="Summer Open 2025" value={name} onChange={(e) => setName(e.target.value)} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div>
-            <label className="label" htmlFor="sdate">Start date</label>
-            <input id="sdate" type="date" className="input input-bordered w-full" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="label" htmlFor="edate">End date</label>
-            <input id="edate" type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </div>
-        </div>
-  <button className="btn btn-primary gap-2" onClick={createTournament}><FiPlus /> Create a new tournament</button>
+  <button className="btn btn-primary gap-2" onClick={() => setShowCreateModal(true)}><FiPlus /> Create tournament</button>
         {msg && <p className="text-sm opacity-80">{msg}</p>}
         <div className="divider">Your tournaments</div>
         {visibleTournaments.length === 0 ? (
@@ -125,6 +114,33 @@ export default function Home() {
         )}
       </div>
       </main>
+      {showCreateModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Create a new tournament</h3>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="label" htmlFor="tname">Tournament name</label>
+                <input id="tname" className="input input-bordered w-full" placeholder="Summer Open 2025" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <label className="label" htmlFor="sdate">Start date</label>
+                  <input id="sdate" type="date" className="input input-bordered w-full" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="edate">End date</label>
+                  <input id="edate" type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setShowCreateModal(false)}>Close</button>
+              <button className="btn btn-primary" onClick={async () => { await createTournament(); setShowCreateModal(false) }}>Create</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

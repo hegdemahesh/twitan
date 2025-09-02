@@ -34,6 +34,7 @@ export default function TournamentEdit() {
   const [playerGender, setPlayerGender] = useState<PlayerGender>('Male')
   const [playerCity, setPlayerCity] = useState('')
   const [catForm, setCatForm] = useState<{ name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat }>({ name: '', gender: 'Open', format: 'Singles' })
+  const [showAddCategory, setShowAddCategory] = useState(false)
   const [editingCategory, setEditingCategory] = useState<null | { categoryId: string; data: { name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat } }>(null)
   const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat }>(null)
   const [entrySelected, setEntrySelected] = useState<string>('')
@@ -226,27 +227,7 @@ export default function TournamentEdit() {
         <button role="tab" className={`tab gap-2 ${tab === 'players' ? 'tab-active' : ''}`} onClick={() => setTab('players')}><FiUsers /> <span className="hidden sm:inline">Players</span></button>
       </div>
 
-  {tab === 'manage' && (
-      <div className="card bg-base-100 card-glow p-4 space-y-3">
-        <div className="font-medium flex items-center gap-2">Admins & scorers <span className="gradient-label">access</span></div>
-        <div className="flex flex-col md:flex-row gap-2">
-          <select className="select select-bordered" value={role} onChange={(e) => setRole(e.target.value as any)}>
-            <option value="admin">Admin</option>
-            <option value="scorer">Scorer</option>
-          </select>
-          <CountryPhoneInput value={phone} onChange={setPhone} />
-          <button className="btn" onClick={addRole}>Add</button>
-        </div>
-        <ul className="space-y-2">
-          {roles.map(r => (
-            <li key={r.id} className="flex justify-between bg-base-200 p-2 rounded">
-              <span className="text-sm">{r.role} • {r.phoneNumber}</span>
-              <button className="btn btn-xs" onClick={() => delRole(r.id)}>Remove</button>
-            </li>
-          ))}
-        </ul>
-      </div>
-      )}
+  {/* Admins & Scorers moved to bottom of page as requested */}
   {tab === 'players' && (
       <div className="card bg-base-100 card-glow p-4 space-y-3">
         <div className="font-medium flex items-center gap-2">Players <span className="gradient-label">manage</span></div>
@@ -283,21 +264,9 @@ export default function TournamentEdit() {
       )}
   {tab === 'manage' && (
       <div className="card bg-base-100 card-glow p-4 space-y-3">
-        <div className="font-medium flex items-center gap-2">Categories <span className="gradient-label">fixtures</span></div>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-          <input className="input input-bordered" placeholder="Name" value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} />
-          <input type="number" className="input input-bordered" placeholder="Min age" value={catForm.minAge ?? ''} onChange={(e) => setCatForm({ ...catForm, minAge: e.target.value ? Number(e.target.value) : null })} />
-          <input type="number" className="input input-bordered" placeholder="Max age" value={catForm.maxAge ?? ''} onChange={(e) => setCatForm({ ...catForm, maxAge: e.target.value ? Number(e.target.value) : null })} />
-          <select className="select select-bordered" value={catForm.gender} onChange={(e) => setCatForm({ ...catForm, gender: e.target.value as any })}>
-            <option>Open</option>
-            <option>Male</option>
-            <option>Female</option>
-          </select>
-          <select className="select select-bordered" value={catForm.format} onChange={(e) => setCatForm({ ...catForm, format: e.target.value as any })}>
-            <option>Singles</option>
-            <option>Doubles</option>
-          </select>
-          <button className="btn" onClick={addCategory}>Add category</button>
+        <div className="flex items-center justify-between">
+          <div className="font-medium flex items-center gap-2">Categories <span className="gradient-label">fixtures</span></div>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAddCategory(true)}>Add category</button>
         </div>
         {isEmulator && (
           <div className="pt-2">
@@ -399,6 +368,33 @@ export default function TournamentEdit() {
 
       {msg && <p className="text-sm opacity-80">{msg}</p>}
 
+      {/* Add Category Modal */}
+      {showAddCategory && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Add category</h3>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-2">
+              <input className="input input-bordered" placeholder="Name" value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} />
+              <input type="number" className="input input-bordered" placeholder="Min age" value={catForm.minAge ?? ''} onChange={(e) => setCatForm({ ...catForm, minAge: e.target.value ? Number(e.target.value) : null })} />
+              <input type="number" className="input input-bordered" placeholder="Max age" value={catForm.maxAge ?? ''} onChange={(e) => setCatForm({ ...catForm, maxAge: e.target.value ? Number(e.target.value) : null })} />
+              <select className="select select-bordered" value={catForm.gender} onChange={(e) => setCatForm({ ...catForm, gender: e.target.value as any })}>
+                <option>Open</option>
+                <option>Male</option>
+                <option>Female</option>
+              </select>
+              <select className="select select-bordered" value={catForm.format} onChange={(e) => setCatForm({ ...catForm, format: e.target.value as any })}>
+                <option>Singles</option>
+                <option>Doubles</option>
+              </select>
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setShowAddCategory(false)}>Close</button>
+              <button className="btn btn-primary" onClick={async () => { await addCategory(); setShowAddCategory(false) }} disabled={!catForm.name.trim()}>Add</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingCategory && (
         <div className="modal modal-open">
           <div className="modal-box">
@@ -425,6 +421,27 @@ export default function TournamentEdit() {
           </div>
         </div>
       )}
+
+      {/* Admins & Scorers moved to bottom */}
+      <div className="card bg-base-100 card-glow p-4 space-y-3 mt-6">
+        <div className="font-medium flex items-center gap-2">Admins & scorers <span className="gradient-label">access</span></div>
+        <div className="flex flex-col md:flex-row gap-2">
+          <select className="select select-bordered" value={role} onChange={(e) => setRole(e.target.value as any)}>
+            <option value="admin">Admin</option>
+            <option value="scorer">Scorer</option>
+          </select>
+          <CountryPhoneInput value={phone} onChange={setPhone} />
+          <button className="btn" onClick={addRole}>Add</button>
+        </div>
+        <ul className="space-y-2">
+          {roles.map(r => (
+            <li key={r.id} className="flex justify-between bg-base-200 p-2 rounded">
+              <span className="text-sm">{r.role} • {r.phoneNumber}</span>
+              <button className="btn btn-xs" onClick={() => delRole(r.id)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {entryModal && (
         <div className="modal modal-open">
