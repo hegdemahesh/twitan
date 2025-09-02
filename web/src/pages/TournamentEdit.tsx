@@ -217,7 +217,7 @@ export default function TournamentEdit() {
 
   {/* Admins & Scorers moved to bottom of page as requested */}
   {/* Only Categories remain visible permanently; Players shown via modal */}
-      <div className="card bg-base-100 card-glow p-4 space-y-3">
+  <div className="space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <div className="font-medium">{tournament?.name ?? 'Tournament'}</div>
