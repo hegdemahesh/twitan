@@ -39,7 +39,7 @@ export default function TournamentEdit() {
   const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat }>(null)
   const [entrySelected, setEntrySelected] = useState<string>('')
   const [entrySelectedP2, setEntrySelectedP2] = useState<string>('')
-  const [tab, setTab] = useState<'manage'|'players'>('manage')
+  const [tab, setTab] = useState<'manage'>('manage')
   const [brackets, setBrackets] = useState<Array<{ id: string; name: string; categoryId: string; format: CategoryFormat; status: string }>>([])
   const [scoreModal, setScoreModal] = useState<null | { bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' }>(null)
   const [newBracketCategoryId, setNewBracketCategoryId] = useState<string>('')
@@ -48,6 +48,7 @@ export default function TournamentEdit() {
   const [newGroupCategoryId, setNewGroupCategoryId] = useState<string>('')
   const [groupScoreModal, setGroupScoreModal] = useState<null | { groupId: string; matchId: string; scoreA: number; scoreB: number; status: 'in-progress'|'completed' }>(null)
   const [catExpand, setCatExpand] = useState<Record<string, { entries: boolean; fixtures: boolean }>>({})
+  const [showAddPlayer, setShowAddPlayer] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { if (!u) nav('/') })
@@ -222,36 +223,21 @@ export default function TournamentEdit() {
         </div>
       )}
 
-  <div role="tablist" className="tabs tabs-boxed">
-        <button role="tab" className={`tab gap-2 ${tab === 'manage' ? 'tab-active' : ''}`} onClick={() => setTab('manage')}><FiSliders /> <span className="hidden sm:inline">Manage</span></button>
-        <button role="tab" className={`tab gap-2 ${tab === 'players' ? 'tab-active' : ''}`} onClick={() => setTab('players')}><FiUsers /> <span className="hidden sm:inline">Players</span></button>
-      </div>
+  <div className="flex items-center justify-between">
+    <div role="tablist" className="tabs tabs-boxed">
+      <button role="tab" className={`tab gap-2 ${tab === 'manage' ? 'tab-active' : ''}`}><FiSliders /> <span className="hidden sm:inline">Manage</span></button>
+    </div>
+    <div className="flex gap-2">
+      <button className="btn btn-sm" onClick={() => setShowAddPlayer(true)}>Add player</button>
+      <button className="btn btn-sm" onClick={() => setShowAddCategory(true)}>Add category</button>
+    </div>
+  </div>
 
   {/* Admins & Scorers moved to bottom of page as requested */}
-  {tab === 'players' && (
+  {/* Players list stays visible under Manage for quick reference */}
+  {tab === 'manage' && (
       <div className="card bg-base-100 card-glow p-4 space-y-3">
         <div className="font-medium flex items-center gap-2">Players <span className="gradient-label">manage</span></div>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-          <div className="md:col-span-2">
-            <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
-          </div>
-          <div className="md:col-span-2">
-            <input className="input input-bordered w-full" placeholder="Name (required)" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
-          </div>
-          <input type="date" className="input input-bordered" value={playerDob} onChange={(e) => setPlayerDob(e.target.value)} />
-          <select className="select select-bordered" value={playerGender} onChange={(e) => setPlayerGender(e.target.value as any)}>
-            <option>Male</option>
-            <option>Female</option>
-            <option>Other</option>
-          </select>
-          <input className="input input-bordered" placeholder="Town/City (optional)" value={playerCity} onChange={(e) => setPlayerCity(e.target.value)} />
-          <button className="btn" onClick={addPlayerByPhone} disabled={!playerName.trim() || !playerDob}>Add player</button>
-        </div>
-        {isEmulator && (
-          <div className="pt-2">
-            <button className="btn btn-sm" onClick={() => addRandomPlayers(10)}>Dev: Add 10 random players</button>
-          </div>
-        )}
         <ul className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
           {players.map(p => (
             <li key={p.id} className="bg-base-200 rounded p-2 text-sm flex justify-between">
@@ -367,6 +353,39 @@ export default function TournamentEdit() {
       )}
 
       {msg && <p className="text-sm opacity-80">{msg}</p>}
+
+      {/* Add Player Modal */}
+      {showAddPlayer && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Add player</h3>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+              <div className="md:col-span-2">
+                <CountryPhoneInput value={playerPhone} onChange={setPlayerPhone} />
+              </div>
+              <div className="md:col-span-2">
+                <input className="input input-bordered w-full" placeholder="Name (required)" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+              </div>
+              <input type="date" className="input input-bordered" value={playerDob} onChange={(e) => setPlayerDob(e.target.value)} />
+              <select className="select select-bordered" value={playerGender} onChange={(e) => setPlayerGender(e.target.value as any)}>
+                <option>Male</option>
+                <option>Female</option>
+                <option>Other</option>
+              </select>
+              <input className="input input-bordered" placeholder="Town/City (optional)" value={playerCity} onChange={(e) => setPlayerCity(e.target.value)} />
+            </div>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setShowAddPlayer(false)}>Close</button>
+              <button className="btn btn-primary" onClick={async () => { await addPlayerByPhone(); setShowAddPlayer(false) }} disabled={!playerName.trim() || !playerDob}>Add</button>
+            </div>
+            {isEmulator && (
+              <div className="pt-2">
+                <button className="btn btn-sm" onClick={() => addRandomPlayers(10)}>Dev: Add 10 random players</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add Category Modal */}
       {showAddCategory && (

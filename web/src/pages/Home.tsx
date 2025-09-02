@@ -14,8 +14,12 @@ export default function Home() {
   const activeCount = visibleTournaments.filter(t => t.status !== 'archived').length
   
   const nav = useNavigate()
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
+  // Prefill with +2 days from today for a friendly default
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  const defaultStart = (() => { const d = new Date(); d.setDate(d.getDate()+2); return fmt(d) })()
+  const defaultEnd = (() => { const d = new Date(); d.setDate(d.getDate()+4); return fmt(d) })()
+  const [startDate, setStartDate] = useState<string>(defaultStart)
+  const [endDate, setEndDate] = useState<string>(defaultEnd)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
@@ -118,7 +122,7 @@ export default function Home() {
         <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg">Create a new tournament</h3>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-4">
               <div>
                 <label className="label" htmlFor="tname">Tournament name</label>
                 <input id="tname" className="input input-bordered w-full" placeholder="Summer Open 2025" value={name} onChange={(e) => setName(e.target.value)} />
@@ -132,6 +136,17 @@ export default function Home() {
                   <label className="label" htmlFor="edate">End date</label>
                   <input id="edate" type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                 </div>
+              </div>
+              <div className="alert alert-info">
+                <span>Next you can add categories (events) and players. You can skip for now and add them later from the tournament page.</span>
+              </div>
+              <div className="space-y-2">
+                <div className="font-medium text-sm">Categories (optional)</div>
+                <p className="text-xs opacity-70">Create Men’s Singles, Women’s Singles, Doubles, age groups, etc. You’ll set these up right after creating the tournament.</p>
+              </div>
+              <div className="space-y-2">
+                <div className="font-medium text-sm">Players (optional)</div>
+                <p className="text-xs opacity-70">Invite players by phone and add details. You can also add players later from the tournament management page.</p>
               </div>
             </div>
             <div className="modal-action">
