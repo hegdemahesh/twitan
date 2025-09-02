@@ -35,6 +35,27 @@ export function Bracket({
   const drawRaf = React.useRef<number | null>(null)
   const roRef = React.useRef<ResizeObserver | null>(null)
   const debounceTimer = React.useRef<number | null>(null)
+  const measurePassRef = React.useRef<number>(0)
+  const labelRefs = React.useRef<Record<number, HTMLDivElement | null>>({})
+  const [labelHeights, setLabelHeights] = React.useState<Record<number, number>>({})
+  const visRaf = React.useRef<number | null>(null)
+  const ioMeasureRef = React.useRef<IntersectionObserver | null>(null)
+  const ioDrawRef = React.useRef<IntersectionObserver | null>(null)
+
+  function isVisible() {
+    const el = containerRef.current
+    if (!el) return false
+    const rect = el.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0
+  }
+  function whenVisible(fn: () => void) {
+    let tries = 0
+    const loop = () => {
+      if (isVisible()) { fn(); return }
+      if (tries++ < 20) { visRaf.current = requestAnimationFrame(loop) }
+    }
+    loop()
+  }
   const [editModal, setEditModal] = React.useState<null | { matchId: string; a?: string; b?: string; clearScores: boolean }>(null)
   const [manageSeeds, setManageSeeds] = React.useState<null | { slots: string[] }>(null)
 
@@ -49,7 +70,8 @@ export function Bracket({
     const measureOffsets = () => {
       const c = containerRef.current
       if (!c || matches.length === 0) return
-      const cRect = c.getBoundingClientRect()
+  const cRect = c.getBoundingClientRect()
+  
       const offsets: Record<string, number> = {}
       for (const m of matches) {
         if (!(m as any).round || (m as any).round <= 1) continue
@@ -65,15 +87,44 @@ export function Bracket({
         const delta = childCenterY - parentCenterY
         if (Math.abs(delta) > 0.5) offsets[m.id] = delta
       }
-      setMatchOffsets(prev => {
-        const changed = Object.keys(offsets).length !== Object.keys(prev).length || Object.entries(offsets).some(([k,v]) => prev[k] !== v)
-        return changed ? offsets : prev
-      })
+      const prev = matchOffsets
+      const changed = Object.keys(offsets).length !== Object.keys(prev).length || Object.entries(offsets).some(([k,v]) => prev[k] !== v)
+      if (changed) {
+        const distinctRounds = new Set(matches.map(m => m.round)).size
+        const maxPasses = Math.max(3, distinctRounds)
+        if (measurePassRef.current < maxPasses) {
+          measurePassRef.current += 1
+          setMatchOffsets(offsets)
+        }
+      } else {
+        measurePassRef.current = 0
+      }
     }
     if (measureRaf.current) cancelAnimationFrame(measureRaf.current)
-    measureRaf.current = requestAnimationFrame(() => measureOffsets())
-    return () => { if (measureRaf.current) cancelAnimationFrame(measureRaf.current) }
-  }, [matches])
+    whenVisible(() => {
+      measureRaf.current = requestAnimationFrame(() => {
+        measureRaf.current = requestAnimationFrame(() => measureOffsets())
+      })
+    })
+    // Also observe visibility; when it becomes visible, re-measure
+    const c = containerRef.current
+    if (c && 'IntersectionObserver' in window) {
+      ioMeasureRef.current = new IntersectionObserver((entries) => {
+        const e = entries[0]
+        if (e?.isIntersecting) {
+          if (measureRaf.current) cancelAnimationFrame(measureRaf.current)
+          measureRaf.current = requestAnimationFrame(() => {
+            measureRaf.current = requestAnimationFrame(() => measureOffsets())
+          })
+        }
+      }, { threshold: 0 })
+      ioMeasureRef.current.observe(c)
+    }
+    return () => {
+      if (measureRaf.current) cancelAnimationFrame(measureRaf.current)
+      if (ioMeasureRef.current) { ioMeasureRef.current.disconnect(); ioMeasureRef.current = null }
+    }
+  }, [matches, matchOffsets, labelHeights])
 
   // Phase 2: draw connectors after transforms
   React.useEffect(() => {
@@ -90,10 +141,10 @@ export function Bracket({
         if (!toEl) continue
         const a = fromEl.getBoundingClientRect()
         const b = toEl.getBoundingClientRect()
-        const x1 = a.right - cRect.left
-        const y1 = (a.top + a.height / 2 - cRect.top)
-        const x2 = b.left - cRect.left
-        const y2 = (b.top + b.height / 2 - cRect.top)
+  const x1 = a.right - cRect.left
+  const y1 = (a.top + a.height / 2 - cRect.top)
+  const x2 = b.left - cRect.left
+  const y2 = (b.top + b.height / 2 - cRect.top)
         ln.push({ x1, y1, x2, y2 })
       }
       setLines(ln)
@@ -102,13 +153,23 @@ export function Bracket({
       if (debounceTimer.current) { clearTimeout(debounceTimer.current); debounceTimer.current = null }
       debounceTimer.current = window.setTimeout(() => {
         if (drawRaf.current) cancelAnimationFrame(drawRaf.current)
-        drawRaf.current = requestAnimationFrame(() => { drawRaf.current = requestAnimationFrame(() => drawLines()) })
+        whenVisible(() => {
+          drawRaf.current = requestAnimationFrame(() => { drawRaf.current = requestAnimationFrame(() => drawLines()) })
+        })
       }, 30)
     }
     scheduleDraw()
     if (containerRef.current && 'ResizeObserver' in window) {
       roRef.current = new ResizeObserver(() => scheduleDraw())
       roRef.current.observe(containerRef.current)
+    }
+    // Observe visibility to redraw after panel is shown
+    if (containerRef.current && 'IntersectionObserver' in window) {
+      ioDrawRef.current = new IntersectionObserver((entries) => {
+        const e = entries[0]
+        if (e && e.isIntersecting) scheduleDraw()
+      }, { threshold: 0 })
+      ioDrawRef.current.observe(containerRef.current)
     }
     const localScrollEl = containerRef.current?.parentElement
     let ticking = false
@@ -123,10 +184,11 @@ export function Bracket({
       if (debounceTimer.current) { clearTimeout(debounceTimer.current); debounceTimer.current = null }
       if (drawRaf.current) cancelAnimationFrame(drawRaf.current)
       if (roRef.current) roRef.current.disconnect()
+  if (ioDrawRef.current) { ioDrawRef.current.disconnect(); ioDrawRef.current = null }
       localScrollEl?.removeEventListener('scroll', onAnyScroll)
       window.removeEventListener('scroll', onAnyScroll)
     }
-  }, [matches, matchOffsets])
+  }, [matches, matchOffsets, labelHeights])
 
   // Reset when layout-affecting data changes
   const layoutKey = React.useMemo(() => {
@@ -134,7 +196,10 @@ export function Bracket({
       .map(m => `${m.id}:${m.participantA?.entryId || ''}|${m.participantB?.entryId || ''}|${(m.scores||[]).map(s=>`${s.a}-${s.b}`).join('_')}`)
       .join(';')
   }, [matches])
-  React.useEffect(() => { setMatchOffsets({}); setLines([]) }, [layoutKey])
+  React.useEffect(() => { setMatchOffsets({}); setLines([]); measurePassRef.current = 0 }, [layoutKey])
+
+  // Measure round label heights and add matching padding so matches never overlap labels
+  
 
   // helpers
   const grouped = matches.reduce((acc: Record<number, Array<any>>, m) => { const arr = acc[m.round] || []; arr.push(m); acc[m.round] = arr; return acc }, {})
@@ -153,6 +218,27 @@ export function Bracket({
     if (status === 'in-progress') return 'bg-warning/15 border-warning/40'
     return 'bg-base-100 border-base-300/60'
   }
+
+  // Measure round label heights and add matching padding so matches never overlap labels
+  React.useEffect(() => {
+    const update = () => {
+      const next: Record<number, number> = {}
+      for (const r of rounds) {
+        const el = labelRefs.current[r]
+        if (el) {
+          const h = el.getBoundingClientRect().height
+          // add small breathing room below the label
+          next[r] = Math.ceil(h + 8)
+        }
+      }
+      const changed = Object.keys(next).length !== Object.keys(labelHeights).length || Object.entries(next).some(([k,v]) => labelHeights[Number(k)] !== v)
+      if (changed) setLabelHeights(next)
+    }
+    update()
+    const onResize = () => update()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [rounds, labelHeights])
 
   return (
     <li className="p-3 rounded bg-base-200">
@@ -185,9 +271,10 @@ export function Bracket({
             })}
           </svg>
           <div className="flex gap-6">
-            {rounds.map(r => (
-              <div key={r} className="min-w-[240px] flex flex-col justify-center gap-4 relative z-10">
-                <div className="gradient-label relative z-10">{roundLabel(r)}</div>
+      {rounds.map(r => (
+              <div key={r} className="min-w-[240px] relative z-10">
+        <div ref={(el)=>{ labelRefs.current[r] = el }} className="gradient-label absolute top-0 left-0 z-20 pointer-events-none">{roundLabel(r)}</div>
+        <div className="flex flex-col gap-4" style={{ paddingTop: (labelHeights[r] ?? 32) }}>
                 {(() => { const arr = [...grouped[r]]; arr.sort((a:any,b:any)=>a.order-b.order); return arr })().map((m:any) => (
                   <div key={m.id} ref={(el) => { matchRefs.current[m.id] = el }} style={{ transform: `translateY(${(matchOffsets[m.id]||0)}px)`, willChange: 'transform' }} className={`relative z-10 p-2 rounded text-sm flex justify-between items-center border soft-ring ${matchStatusClass(m.status)}`}>
                     <div>
@@ -212,6 +299,7 @@ export function Bracket({
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             ))}
           </div>
