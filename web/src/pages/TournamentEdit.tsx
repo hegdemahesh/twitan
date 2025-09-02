@@ -376,21 +376,37 @@ export default function TournamentEdit() {
       {/* Add Category Modal */}
       {showAddCategory && (
         <div className="modal modal-open">
-          <div className="modal-box">
+          <div className="modal-box max-w-3xl">
             <h3 className="font-bold text-lg">Add category</h3>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-2">
-              <input className="input input-bordered" placeholder="Name" value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} />
-              <input type="number" className="input input-bordered" placeholder="Min age" value={catForm.minAge ?? ''} onChange={(e) => setCatForm({ ...catForm, minAge: e.target.value ? Number(e.target.value) : null })} />
-              <input type="number" className="input input-bordered" placeholder="Max age" value={catForm.maxAge ?? ''} onChange={(e) => setCatForm({ ...catForm, maxAge: e.target.value ? Number(e.target.value) : null })} />
-              <select className="select select-bordered" value={catForm.gender} onChange={(e) => setCatForm({ ...catForm, gender: e.target.value as any })}>
-                <option>Open</option>
-                <option>Male</option>
-                <option>Female</option>
-              </select>
-              <select className="select select-bordered" value={catForm.format} onChange={(e) => setCatForm({ ...catForm, format: e.target.value as any })}>
-                <option>Singles</option>
-                <option>Doubles</option>
-              </select>
+            <p className="text-xs opacity-70 mt-1">Create an event like Men Singles, Women Singles, U15 Singles, or Doubles. Age bounds are optional.</p>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-3 items-start">
+              <div className="md:col-span-3">
+                <label className="label"><span className="label-text">Name</span></label>
+                <input className="input input-bordered w-full" placeholder="e.g., Men Singles" value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} />
+              </div>
+              <div>
+                <label className="label"><span className="label-text">Min age</span></label>
+                <input type="number" className="input input-bordered w-full" placeholder="Optional" value={catForm.minAge ?? ''} onChange={(e) => setCatForm({ ...catForm, minAge: e.target.value ? Number(e.target.value) : null })} />
+              </div>
+              <div>
+                <label className="label"><span className="label-text">Max age</span></label>
+                <input type="number" className="input input-bordered w-full" placeholder="Optional" value={catForm.maxAge ?? ''} onChange={(e) => setCatForm({ ...catForm, maxAge: e.target.value ? Number(e.target.value) : null })} />
+              </div>
+              <div>
+                <label className="label"><span className="label-text">Gender</span></label>
+                <select className="select select-bordered w-full" value={catForm.gender} onChange={(e) => setCatForm({ ...catForm, gender: e.target.value as any })}>
+                  <option>Open</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                </select>
+              </div>
+              <div>
+                <label className="label"><span className="label-text">Format</span></label>
+                <select className="select select-bordered w-full" value={catForm.format} onChange={(e) => setCatForm({ ...catForm, format: e.target.value as any })}>
+                  <option>Singles</option>
+                  <option>Doubles</option>
+                </select>
+              </div>
             </div>
             <div className="modal-action">
               <button className="btn" onClick={() => setShowAddCategory(false)}>Close</button>
@@ -402,22 +418,36 @@ export default function TournamentEdit() {
 
       {editingCategory && (
         <div className="modal modal-open">
-          <div className="modal-box">
+          <div className="modal-box max-w-3xl">
             <h3 className="font-bold text-lg">Edit category</h3>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
-              <input className="input input-bordered" placeholder="Name" value={editingCategory.data.name} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, name: e.target.value } })} />
-              <input type="number" className="input input-bordered" placeholder="Min age" value={editingCategory.data.minAge ?? ''} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, minAge: e.target.value ? Number(e.target.value) : null } })} />
-              <input type="number" className="input input-bordered" placeholder="Max age" value={editingCategory.data.maxAge ?? ''} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, maxAge: e.target.value ? Number(e.target.value) : null } })} />
-              <select className="select select-bordered" value={editingCategory.data.gender} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, gender: e.target.value as any } })}>
-                <option>Open</option>
-                <option>Male</option>
-                <option>Female</option>
-              </select>
-              <select className="select select-bordered" value={editingCategory.data.format} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, format: e.target.value as any } })}>
-                <option>Singles</option>
-                <option>Doubles</option>
-              </select>
-              <div />
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-3 items-start">
+              <div className="md:col-span-3">
+                <label className="label"><span className="label-text">Name</span></label>
+                <input className="input input-bordered w-full" placeholder="Name" value={editingCategory.data.name} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, name: e.target.value } })} />
+              </div>
+              <div>
+                <label className="label"><span className="label-text">Min age</span></label>
+                <input type="number" className="input input-bordered w-full" placeholder="Optional" value={editingCategory.data.minAge ?? ''} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, minAge: e.target.value ? Number(e.target.value) : null } })} />
+              </div>
+              <div>
+                <label className="label"><span className="label-text">Max age</span></label>
+                <input type="number" className="input input-bordered w-full" placeholder="Optional" value={editingCategory.data.maxAge ?? ''} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, maxAge: e.target.value ? Number(e.target.value) : null } })} />
+              </div>
+              <div>
+                <label className="label"><span className="label-text">Gender</span></label>
+                <select className="select select-bordered w-full" value={editingCategory.data.gender} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, gender: e.target.value as any } })}>
+                  <option>Open</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                </select>
+              </div>
+              <div>
+                <label className="label"><span className="label-text">Format</span></label>
+                <select className="select select-bordered w-full" value={editingCategory.data.format} onChange={(e) => setEditingCategory({ ...editingCategory, data: { ...editingCategory.data, format: e.target.value as any } })}>
+                  <option>Singles</option>
+                  <option>Doubles</option>
+                </select>
+              </div>
             </div>
             <div className="modal-action">
               <button className="btn" onClick={() => setEditingCategory(null)}>Close</button>
