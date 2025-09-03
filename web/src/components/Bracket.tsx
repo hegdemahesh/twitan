@@ -74,25 +74,24 @@ export function Bracket({
   
       const offsets: Record<string, number> = {}
       const parentCenterCache: Record<string, number> = {}
-      const childCentersByParent: Record<string, [number, number] | undefined> = {}
+      const childCentersByParent: Record<string, number[] | undefined> = {}
       for (const m of matches) {
         if (!(m as any).round || (m as any).round <= 1) continue
         const children = matches.filter(x => x.nextMatchId === m.id)
-        if (children.length < 2) continue
         const childEls = children.map(ch => matchRefs.current[ch.id]).filter(Boolean) as HTMLDivElement[]
         const parentEl = matchRefs.current[m.id]
-        if (childEls.length < 2 || !parentEl) continue
-        const a = childEls[0].getBoundingClientRect(); const b = childEls[1].getBoundingClientRect()
+        if (childEls.length < 1 || !parentEl) continue
         const p = parentEl.getBoundingClientRect()
-        const childCenterY = ((a.top + a.height / 2) + (b.top + b.height / 2)) / 2 - cRect.top
+        const childCenters = childEls.map(el => {
+          const r = el.getBoundingClientRect()
+          return (r.top + r.height / 2) - cRect.top
+        })
+        const childCenterY = childCenters.reduce((acc, v) => acc + v, 0) / childCenters.length
         const parentCenterY = (p.top + p.height / 2) - cRect.top
         const delta = childCenterY - parentCenterY
         if (Math.abs(delta) > 0.5) offsets[m.id] = delta
         parentCenterCache[m.id] = parentCenterY
-        childCentersByParent[m.id] = [
-          (a.top + a.height / 2) - cRect.top,
-          (b.top + b.height / 2) - cRect.top,
-        ]
+        childCentersByParent[m.id] = childCenters
       }
 
       // Round-level centering: center the whole set of matches in round r within the span of their children
@@ -103,10 +102,9 @@ export function Bracket({
         let minChild = Infinity, maxChild = -Infinity
         let minParentProj = Infinity, maxParentProj = -Infinity
         for (const m of inRound) {
-          const pair = childCentersByParent[m.id]
-          if (pair) {
-            minChild = Math.min(minChild, pair[0], pair[1])
-            maxChild = Math.max(maxChild, pair[0], pair[1])
+          const arr = childCentersByParent[m.id]
+          if (arr && arr.length) {
+            for (const v of arr) { minChild = Math.min(minChild, v); maxChild = Math.max(maxChild, v) }
           }
           const base = parentCenterCache[m.id]
           if (base == null) continue
@@ -126,8 +124,8 @@ export function Bracket({
       const prev = matchOffsets
       const changed = Object.keys(offsets).length !== Object.keys(prev).length || Object.entries(offsets).some(([k,v]) => prev[k] !== v)
       if (changed) {
-        const distinctRounds = new Set(matches.map(m => m.round)).size
-        const maxPasses = Math.max(3, distinctRounds)
+  const distinctRounds = new Set(matches.map(m => m.round)).size
+  const maxPasses = Math.max(6, distinctRounds * 2)
         if (measurePassRef.current < maxPasses) {
           measurePassRef.current += 1
           setMatchOffsets(offsets)
