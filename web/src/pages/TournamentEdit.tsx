@@ -37,8 +37,6 @@ export default function TournamentEdit() {
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [editingCategory, setEditingCategory] = useState<null | { categoryId: string; data: { name: string; minAge?: number | null; maxAge?: number | null; gender: CategoryGender; format: CategoryFormat } }>(null)
   const [entryModal, setEntryModal] = useState<null | { categoryId: string; categoryName: string; format: CategoryFormat; gender: CategoryGender; minAge?: number | null; maxAge?: number | null }>(null)
-  const [entrySelected, setEntrySelected] = useState<string>('')
-  const [entrySelectedP2, setEntrySelectedP2] = useState<string>('')
   // Single-page manage view (no tabs)
   const [brackets, setBrackets] = useState<Array<{ id: string; name: string; categoryId: string; format: CategoryFormat; status: string }>>([])
   const [scoreModal, setScoreModal] = useState<null | { bracketId: string; matchId: string; scores: Array<{ a: number; b: number }>; status: 'in-progress'|'completed' }>(null)
@@ -139,18 +137,20 @@ export default function TournamentEdit() {
     setEditingCategory(null)
   }
 
-  async function addEntry() {
-    if (!entryModal) return
+  async function addEntriesFromAllocation(selected: string[]) {
+    if (!entryModal || selected.length === 0) return
     const call = httpsCallable(functions, 'addEvent')
     if (entryModal.format === 'Singles') {
-      if (!entrySelected) return
-      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Singles', playerId: entrySelected } })
+      for (const pid of selected) {
+        await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Singles', playerId: pid } })
+      }
     } else {
-      if (!entrySelected || !entrySelectedP2 || entrySelected === entrySelectedP2) return
-      await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Doubles', player1Id: entrySelected, player2Id: entrySelectedP2 } as any })
+      // Pair sequentially: [0]-[1], [2]-[3], ...; skip odd leftover
+      for (let i = 0; i + 1 < selected.length; i += 2) {
+        const p1 = selected[i], p2 = selected[i+1]
+        await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddEntry, eventPayload: { tournamentId: id, categoryId: entryModal.categoryId, format: 'Doubles', player1Id: p1, player2Id: p2 } as any })
+      }
     }
-    setEntrySelected('')
-    setEntrySelectedP2('')
     setEntryModal(null)
   }
 
@@ -198,16 +198,21 @@ export default function TournamentEdit() {
     const y = randInt(minYear, maxYear); const m = randInt(1, 12); const d = randInt(1, 28)
     return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
   }
-  const FIRST_NAMES = ['Aarav','Vihaan','Aditya','Rohan','Kabir','Arjun','Ishaan','Rahul','Ananya','Diya','Aisha','Saanvi','Anika','Riya','Kavya','Maya']
+  const MALE_FIRST_NAMES = ['Aarav','Vihaan','Aditya','Rohan','Kabir','Arjun','Ishaan','Rahul','Rajat','Siddharth','Kunal','Manish','Aakash','Nitin','Pranav']
+  const FEMALE_FIRST_NAMES = ['Ananya','Diya','Aisha','Saanvi','Anika','Riya','Kavya','Maya','Ishita','Neha','Pooja','Meera','Priya','Sneha','Radhika']
   const LAST_NAMES = ['Sharma','Verma','Reddy','Iyer','Patel','Khan','Singh','Gupta','Bose','Shetty','Joshi','Nair','Kulkarni','Shah']
-  function randomName() { return `${FIRST_NAMES[randInt(0,FIRST_NAMES.length-1)]} ${LAST_NAMES[randInt(0,LAST_NAMES.length-1)]}` }
-  function randomGender(): PlayerGender { return (['Male','Female','Other'] as PlayerGender[])[randInt(0,2)] }
+  function randomNameForGender(g: Exclude<PlayerGender, 'Other'>) {
+    const first = g === 'Male' ? MALE_FIRST_NAMES : FEMALE_FIRST_NAMES
+    return `${first[randInt(0,first.length-1)]} ${LAST_NAMES[randInt(0,LAST_NAMES.length-1)]}`
+  }
+  function randomGenderMF(): Exclude<PlayerGender,'Other'> { return (['Male','Female'] as const)[randInt(0,1)] }
 
   async function addRandomPlayers(n = 10) {
     if (!id) return
     const call = httpsCallable(functions, 'addEvent')
     const tasks = Array.from({ length: n }).map(async () => {
-      const player = { name: randomName(), dob: randomDateOfBirth(), gender: randomGender() }
+  const g = randomGenderMF()
+  const player = { name: randomNameForGender(g), dob: randomDateOfBirth(), gender: g }
       await call({ eventType: EventTypes.Tournament, eventName: EventNames.Tournament.AddPlayer, eventPayload: { tournamentId: id, player } })
     })
     await Promise.all(tasks)
@@ -290,7 +295,7 @@ export default function TournamentEdit() {
                     tournamentId={id}
                     category={{ id: c.id, name: c.name, format: c.format, minAge: c.minAge ?? null, maxAge: c.maxAge ?? null, gender: c.gender }}
                     players={players}
-                    onAddRequest={() => { setEntryModal({ categoryId: c.id, categoryName: c.name, format: c.format, gender: c.gender, minAge: c.minAge ?? null, maxAge: c.maxAge ?? null }); setEntrySelected('') }}
+                    onAddRequest={() => { setEntryModal({ categoryId: c.id, categoryName: c.name, format: c.format, gender: c.gender, minAge: c.minAge ?? null, maxAge: c.maxAge ?? null }); }}
                     onDeleteEntry={(entryId) => deleteEntry(c.id, entryId)}
                   />
                 )}
@@ -525,25 +530,13 @@ export default function TournamentEdit() {
       )}
 
       {entryModal && (
-        <div className="modal modal-open">
-          <div className="modal-box">
-            <h3 className="font-bold text-lg">Add entry to {entryModal.categoryName}</h3>
-            <div className="mt-4">
-              {entryModal.format === 'Singles' ? (
-                <PlayerPicker players={players} value={entrySelected} onChange={setEntrySelected} label="Select player" filter={(p) => isEligibleForCategory(p, entryModal, tournament?.startDate)} />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <PlayerPicker players={players} value={entrySelected} onChange={setEntrySelected} label="Select player 1" filter={(p) => isEligibleForCategory(p, entryModal, tournament?.startDate)} />
-                  <PlayerPicker players={players} value={entrySelectedP2} onChange={setEntrySelectedP2} label="Select player 2" excludeId={entrySelected} filter={(p) => isEligibleForCategory(p, entryModal, tournament?.startDate)} />
-                </div>
-              )}
-            </div>
-            <div className="modal-action">
-              <button className="btn" onClick={() => setEntryModal(null)}>Close</button>
-              <button className="btn btn-primary" onClick={addEntry} disabled={entryModal.format === 'Singles' ? !entrySelected : (!entrySelected || !entrySelectedP2 || entrySelected === entrySelectedP2)}>Add</button>
-            </div>
-          </div>
-        </div>
+        <PlayerAllocationDialog
+          title={`Add entry to ${entryModal.categoryName}`}
+          available={players.filter(p => isEligibleForCategory(p, entryModal, tournament?.startDate))}
+          format={entryModal.format}
+          onClose={() => setEntryModal(null)}
+          onConfirm={(selected: string[]) => addEntriesFromAllocation(selected)}
+        />
       )}
 
       {seedingModal && (
@@ -866,5 +859,71 @@ function GroupScoringGrid({ groupScoreModal, setGroupScoreModal }: Readonly<{ gr
 function EffectOnChange<T>({ value, onChange }: Readonly<{ value: T; onChange: (v: T) => void }>) {
   useEffect(() => { onChange(value) }, [value])
   return null
+}
+
+function PlayerAllocationDialog({ title, available, format, onClose, onConfirm }: Readonly<{ title: string; available: Array<{ id: string; name?: string }>; format: CategoryFormat; onClose: () => void; onConfirm: (selectedIds: string[]) => void }>) {
+  const [left, setLeft] = useState<string[]>(() => available.map(p => p.id))
+  const [right, setRight] = useState<string[]>([])
+  const [leftSel, setLeftSel] = useState<string | null>(null)
+  const [rightSel, setRightSel] = useState<string | null>(null)
+  useEffect(() => { setLeft(available.map(p => p.id)); setRight([]); setLeftSel(null); setRightSel(null) }, [available])
+  function moveRight() {
+    if (!leftSel) return
+    if (!right.includes(leftSel)) setRight([...right, leftSel])
+    setLeft(left.filter(id => id !== leftSel))
+    setLeftSel(null)
+  }
+  function moveLeft() {
+    if (!rightSel) return
+    if (!left.includes(rightSel)) setLeft([...left, rightSel])
+    setRight(right.filter(id => id !== rightSel))
+    setRightSel(null)
+  }
+  // Optional: order by name for stable listing
+  const nameOf = (id: string) => available.find(p => p.id === id)?.name || id
+  const leftItems = [...left].sort((a,b) => nameOf(a).localeCompare(nameOf(b)))
+  const rightItems = [...right].sort((a,b) => nameOf(a).localeCompare(nameOf(b)))
+  return (
+    <div className="modal modal-open">
+      <div className="modal-box max-w-4xl">
+        <h3 className="font-bold text-lg">{title}</h3>
+        <p className="text-xs opacity-70 mt-1">Select players who meet the category rules. Move between lists to allocate.</p>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+          <div className="p-2 rounded bg-base-100 border border-base-200 max-h-80 overflow-auto">
+            <div className="font-medium text-sm mb-2">Available</div>
+            <ul className="space-y-1">
+              {leftItems.map(id => (
+                <li key={id}>
+                  <button type="button" className={`w-full text-left px-2 py-1 rounded text-sm ${leftSel===id?'bg-primary/20':''}`} onClick={() => setLeftSel(id)}>
+                    {nameOf(id)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <button className="btn btn-sm" onClick={moveRight} disabled={!leftSel}>→</button>
+            <button className="btn btn-sm" onClick={moveLeft} disabled={!rightSel}>←</button>
+          </div>
+          <div className="p-2 rounded bg-base-100 border border-base-200 max-h-80 overflow-auto">
+            <div className="font-medium text-sm mb-2">Allocated {format==='Doubles' ? '(even count to pair)' : ''}</div>
+            <ul className="space-y-1">
+              {rightItems.map(id => (
+                <li key={id}>
+                  <button type="button" className={`w-full text-left px-2 py-1 rounded text-sm ${rightSel===id?'bg-primary/20':''}`} onClick={() => setRightSel(id)}>
+                    {nameOf(id)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className="modal-action">
+          <button className="btn" onClick={onClose}>Close</button>
+          <button className="btn btn-primary" onClick={() => onConfirm(rightItems)} disabled={format==='Doubles' && rightItems.length < 2}>Add</button>
+        </div>
+      </div>
+    </div>
+  )
 }
  
