@@ -544,6 +544,7 @@ export default function TournamentEdit() {
           tournamentId={id}
           categoryId={seedingModal.categoryId}
           categoryName={seedingModal.categoryName}
+          players={players}
           onClose={() => setSeedingModal(null)}
           onConfirm={async (orderedIds, lock) => {
             // Create bracket first, then reseed when it appears
@@ -658,11 +659,11 @@ function isEligibleForCategory(p: { dob?: string; gender?: PlayerGender }, cat: 
   return true
 }
 
-function SeedBracketDialog({ tournamentId, categoryId, categoryName, onClose, onConfirm }: Readonly<{ tournamentId: string; categoryId: string; categoryName: string; onClose: () => void; onConfirm: (orderedIds: string[], lock: boolean) => void }>) {
+function SeedBracketDialog({ tournamentId, categoryId, categoryName, players, onClose, onConfirm }: Readonly<{ tournamentId: string; categoryId: string; categoryName: string; players: Array<{ id: string; name?: string }>; onClose: () => void; onConfirm: (orderedIds: string[], lock: boolean) => void }>) {
   const [entries, setEntries] = useState<Array<{ id: string; playerId?: string; player1Id?: string; player2Id?: string }>>([])
-  const [ordered, setOrdered] = useState<string[]>([])
+  const [ordered, setOrdered] = useState<string[]>([]) // includes BYE-* placeholders
+  const [selIdx, setSelIdx] = useState<number | null>(null)
   const [lock, setLock] = useState(false)
-  const [byes, setByes] = useState<number>(0)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'tournaments', tournamentId, 'categories', categoryId, 'entries'), (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
@@ -678,60 +679,84 @@ function SeedBracketDialog({ tournamentId, categoryId, categoryName, onClose, on
   [a[i], a[j]] = [a[j], a[i]]
     setOrdered(a)
   }
-  function remove(id: string) { setOrdered(ordered.filter(x => x !== id)) }
-  function add(id: string) { if (!ordered.includes(id)) setOrdered([...ordered, id]) }
-  const orderedWithByes = (() => {
+  function removeAt(i: number) {
+    setOrdered(ordered.filter((_, idx) => idx !== i))
+  }
+  function addEntryAfter(id: string, afterIdx: number | null) {
     const a = [...ordered]
-    // insert BYEs evenly: after each pair boundary until count exhausted
-    let count = byes
-    let idx = 1
-    while (count > 0 && idx <= a.length) {
-      a.splice(idx, 0, `BYE-${byes - count + 1}`)
-      count--; idx += 2
+    const pos = (afterIdx == null || afterIdx < 0 || afterIdx >= a.length) ? a.length : afterIdx + 1
+    if (!a.includes(id)) { a.splice(pos, 0, id); setOrdered(a); setSelIdx(pos) }
+  }
+  function insertBye(afterIdx: number | null) {
+    const a = [...ordered]
+    const pos = (afterIdx == null || afterIdx < 0 || afterIdx >= a.length) ? a.length : afterIdx + 1
+    const nextNum = a.filter(x => x.startsWith('BYE-')).length + 1
+    a.splice(pos, 0, `BYE-${nextNum}`)
+    setOrdered(a); setSelIdx(pos)
+  }
+  const available = entries.filter(e => !ordered.includes(e.id))
+  const labelFor = (id: string) => {
+    if (id.startsWith('BYE-')) return id
+    const e = entries.find(x => x.id === id)
+    if (!e) return id
+    if (e.playerId) return resolveName(players, e.playerId)
+    return `${resolveName(players, e.player1Id)} & ${resolveName(players, e.player2Id)}`
+  }
+  const pairs = (() => {
+    const p: Array<[string, string]> = []
+    for (let i = 0; i < ordered.length; i += 2) {
+      p.push([ordered[i], ordered[i+1] ?? 'BYE'])
     }
-    if (count > 0) {
-      // append remaining
-      for (let k = 0; k < count; k++) a.push(`BYE-${byes - count + 1 + k}`)
-    }
-    return a
+    return p
   })()
   return (
     <div className="modal modal-open">
       <div className="modal-box max-w-5xl">
         <h3 className="font-bold text-lg">Seed bracket for {categoryName}</h3>
-        <div className="text-xs opacity-70 mt-1">Arrange players on the right; add BYEs to balance the draw. Left = available entries.</div>
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-2 rounded bg-base-100 border border-base-200">
-            <div className="font-medium mb-2 text-sm">Available</div>
+        <div className="text-xs opacity-70 mt-1">Arrange players on the left; add BYEs where needed; pick from the right to add more. Preview shows first round pairings.</div>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Bracket order (left) */}
+          <div className="p-2 rounded bg-base-100 border border-base-200 md:col-span-1">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-medium text-sm">Bracket order</div>
+              <button className="btn btn-xs" onClick={() => insertBye(selIdx)}>+ BYE</button>
+            </div>
             <ul className="space-y-1 max-h-80 overflow-auto">
-              {entries.filter(e => !ordered.includes(e.id)).map(e => (
-                <li key={e.id} className="flex justify-between items-center bg-base-200 rounded px-2 py-1 text-sm">
-                  <span>{e.playerId ? e.playerId : `${e.player1Id} & ${e.player2Id}`}</span>
-                  <button className="btn btn-ghost btn-xs" onClick={() => add(e.id)}>Add →</button>
+              {ordered.map((id, i) => (
+                <li key={`${id}-${i}`} className={`flex items-center gap-2 rounded px-2 py-1 text-sm ${selIdx===i?'bg-primary/10':''}`}>
+                  <button className="btn btn-ghost btn-xs" onClick={() => setSelIdx(i)} title="Select">●</button>
+                  <span className="w-6 text-xs opacity-60">{i+1}</span>
+                  <span className="flex-1">{labelFor(id)}</span>
+                  <button className="btn btn-ghost btn-xs" onClick={() => move(i, -1)}>↑</button>
+                  <button className="btn btn-ghost btn-xs" onClick={() => move(i, +1)}>↓</button>
+                  {id.startsWith('BYE-') ? (
+                    <button className="btn btn-ghost btn-xs" onClick={() => removeAt(i)}>Remove BYE</button>
+                  ) : (
+                    <button className="btn btn-ghost btn-xs" onClick={() => removeAt(i)}>Remove</button>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="p-2 rounded bg-base-100 border border-base-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-medium text-sm">Bracket order</div>
-              <div className="flex items-center gap-2">
-                <label className="label" htmlFor="seed-byes"><span className="label-text">BYEs</span></label>
-                <input id="seed-byes" type="number" min={0} className="input input-bordered input-sm w-24" value={byes} onChange={(e)=> setByes(Math.max(0, Number(e.target.value||0)))} />
-              </div>
-            </div>
+          {/* Available (right) */}
+          <div className="p-2 rounded bg-base-100 border border-base-200 md:col-span-1">
+            <div className="font-medium mb-2 text-sm">Available</div>
             <ul className="space-y-1 max-h-80 overflow-auto">
-              {orderedWithByes.map((id, i) => (
-                <li key={`${id}-${i}`} className="flex items-center gap-2 bg-base-200 rounded px-2 py-1 text-sm">
-                  <span className="w-6 text-xs opacity-60">{i+1}</span>
-                  <span className="flex-1">{id.startsWith('BYE-') ? id : (entries.find(e => e.id === id)?.playerId || `${entries.find(e => e.id === id)?.player1Id} & ${entries.find(e => e.id === id)?.player2Id}`)}</span>
-                  {!id.startsWith('BYE-') && (
-                    <>
-                      <button className="btn btn-ghost btn-xs" onClick={() => move(i, -1)}>↑</button>
-                      <button className="btn btn-ghost btn-xs" onClick={() => move(i, +1)}>↓</button>
-                      <button className="btn btn-ghost btn-xs" onClick={() => remove(id)}>Remove</button>
-                    </>
-                  )}
+              {available.map(e => (
+                <li key={e.id} className="flex justify-between items-center bg-base-200 rounded px-2 py-1 text-sm">
+                  <span>{labelFor(e.id)}</span>
+                  <button className="btn btn-ghost btn-xs" onClick={() => addEntryAfter(e.id, selIdx)}>Add →</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {/* Preview (middle on large, below on small) */}
+          <div className="p-2 rounded bg-base-100 border border-base-200 md:col-span-1">
+            <div className="font-medium mb-2 text-sm">Preview: Round 1</div>
+            <ul className="space-y-1 max-h-80 overflow-auto">
+              {pairs.map((pair, idx) => (
+                <li key={idx} className="bg-base-200 rounded px-2 py-1 text-sm">
+                  Match {idx+1}: {labelFor(pair[0])} vs {labelFor(pair[1] ?? 'BYE-')}
                 </li>
               ))}
             </ul>
@@ -741,7 +766,7 @@ function SeedBracketDialog({ tournamentId, categoryId, categoryName, onClose, on
           <label className="label" htmlFor="seed-lock"><span className="label-text">Lock bracket after create</span></label>
           <input id="seed-lock" type="checkbox" className="toggle" checked={lock} onChange={(e)=> setLock(e.target.checked)} />
           <button className="btn" onClick={onClose}>Close</button>
-          <button className="btn btn-primary" onClick={() => onConfirm(orderedWithByes, lock)} disabled={ordered.length === 0}>Create</button>
+          <button className="btn btn-primary" onClick={() => onConfirm(ordered, lock)} disabled={ordered.length === 0}>Create</button>
         </div>
       </div>
     </div>
